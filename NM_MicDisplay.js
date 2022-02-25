@@ -412,7 +412,8 @@ async function NM_MicDisplay_init(micStream) {
 	create_texture('image/redCircle.png?'+new Date().getTime(), 0);
 	create_texture('image/redCircleLight.png?'+new Date().getTime(), 1);
 	create_texture('image/redCircleWave.png?'+new Date().getTime(), 2);
-	create_texture_from_canvas("virtualBackTexture", 512, 3);
+	//virtualBackTextureSizeはvirtualBack.js内の変数
+	create_texture_from_canvas("virtualBackTexture", virtualBackTextureSize, 3);
 
 	m.lookAt([0.0, 9.0, -18.0], [0,2.0,0], [0, 1, 0], vMatrix);
 	m.perspective(60.0, c.width/c.height, 1.0, 100, pMatrix);
@@ -701,6 +702,7 @@ function NM_MicDisplay_drawCapture() {
 	gl.vertexAttribPointer(attLocation[2], attStride[2], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_ibo);
 
+	//virtualBackCanvasSizeはvirtualBack.js内の変数
 	var aspect = virtualBackCanvasSize.height / virtualBackCanvasSize.width;
 	m.identity(mMatrix);
 	m.translate(mMatrix, [0.0, 6.0, -6.0], mMatrix);
