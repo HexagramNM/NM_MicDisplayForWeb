@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>NM_MicDisplay for Web</title>
+  <!-- Load TensorFlow.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.2"></script>
+  <!-- Load BodyPix -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0"></script>
+  <script type="text/javascript" src="virtualBack.js"></script>
+  <script type="text/javascript" src="minMatrix.js"></script>
+  <script type="text/javascript" src="NM_MicDisplay.js"></script>
+  <script type="text/javascript" src="main.js"></script>
+  <script id="vshader" type="x-shader/x-vertex">
+  		attribute vec3 position;
+  		attribute vec4 color;
+  		attribute vec2 textureCoord;
+  		uniform mat4 mvpMatrix;
+      uniform float pointSize;
+  		varying vec4 vColor;
+  		varying vec2 vTextureCoord;
+  		void main(void) {
+  			vColor = color;
+  			vTextureCoord = textureCoord;
+  			gl_Position = mvpMatrix*vec4(position, 1.0);
+        gl_PointSize = pointSize;
+  		}
+  </script>
+  <script id="fshader" type="x-shader/x-fragment">
+  		precision mediump float;
+      uniform int enableTexture;
+  		uniform sampler2D texture;
+      uniform vec4 globalColor;
+  		varying vec4 vColor;
+  		varying vec2 vTextureCoord;
+  		void main(void) {
+        if (enableTexture != 0) {
+  			     vec4 smpColor = texture2D(texture, vTextureCoord);
+  			     gl_FragColor = vColor * smpColor * globalColor;
+        }
+        else {
+             gl_FragColor = vColor * globalColor;
+        }
+  		}
+  		</script>
+  </head>
+</head>
+<body onload="VirtualBB_main()" style="margin: 0; padding: 0; overflow: hidden">
+  <div id="easyInst" style="color: #FFFFFF">
+    クリックしてスタート<br>
+    ※起動後マイクとカメラの使用を許可してください。<br>
+    ※画面をクリックするとカメラ映像を左右反転させます。<br>
+  </div>
+  <div id="main">
+    <video id="video" style="display: none"></video>
+    <canvas id="intermediate" style="display: none"></canvas>
+    <canvas id="virtualBackTexture" style="display: none"></canvas>
+    <canvas id="NM_MicDisplayOutput"></canvas>
+  </div>
+</body>
+</html>
