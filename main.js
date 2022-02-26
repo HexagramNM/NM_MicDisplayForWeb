@@ -30,10 +30,10 @@ async function VirtualBB_startProcess() {
         return;
     }
 
-    await NM_MicDisplay_init(audioStream);
     await VirtualBack_init(videoStream);
-    NM_MicDisplay_main();
+    await NM_MicDisplay_init(audioStream);
     VirtualBack_main();
+    NM_MicDisplay_main();
 }
 
 function VirtualBB_main() {
