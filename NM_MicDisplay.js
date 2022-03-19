@@ -15,7 +15,7 @@ var currentDftWaveLevel;
 var previousDftWaveLevel;
 var dftBarCount;
 
-var m= new matIV();
+var m = new matIV();
 var mMatrix = m.identity(m.create());
 var vMatrix = m.identity(m.create());
 var pMatrix = m.identity(m.create());
@@ -53,6 +53,11 @@ var soundWaveIndex_ibo;
 var textureProcess = new Array();
 
 var NM_MicDisplay_canvasSize = {width: 1280, height: 720};
+var canvasScaleInWindowShareMode = 0.4;
+var previousMousePosX = null;
+var previousMousePosY = null;
+var canvasPositionXInWindowShareMode = 0;
+var canvasPositionYInWindowShareMode = 0;
 var circleRadius = 13.0;
 var dftElementNum = 19;
 var dftBarMaxLevel = 12;
@@ -63,7 +68,7 @@ var waveHeight = 5.0;
 var waveLevelRateThreshold = 1.2;
 var waveLineWidthHalf = 0.08;
 var waveOffsetHeight = 4.0;
-var captureWidth = 6.66;
+var captureWidth = 7.0;
 
 function create_vbo(data, isDynamic=false) {
 	var vbo=gl.createBuffer();
@@ -345,12 +350,36 @@ function NM_MicDisplay_createSoundWaveBuffer() {
 	soundWaveIndex_vbo = create_ibo(soundWaveIndex_data);
 }
 
-function NM_MicDislay_adjustCanvasSize() {
+function NM_MicDisplay_mouseDownEvent(event) {
+	previousMousePosX = event.pageX;
+	previousMousePosY = event.pageY;
+}
+
+function NM_MicDisplay_mouseUpEvent(event) {
+	previousMousePosX = null;
+	previousMousePosY = null;
+}
+
+function NM_MicDisplay_mouseMoveEvent(event) {
+	if (previousMousePosX != null && previousMousePosY != null) {
+		canvasPositionXInWindowShareMode += event.pageX - previousMousePosX;
+		canvasPositionYInWindowShareMode += event.pageY - previousMousePosY;
+		previousMousePosX = event.pageX;
+		previousMousePosY = event.pageY;
+	}
+}
+
+function NM_MicDislay_adjustCanvasSize(initFlag) {
+	var underBackgroundVideo = document.getElementById("underBackground");
+	underBackgroundVideo.width = document.documentElement.clientWidth;
+	underBackgroundVideo.height = document.documentElement.clientHeight;
+
 	var c = document.getElementById('NM_MicDisplayOutput');
 	var currentWidth = document.documentElement.clientWidth;
 	var currentHeight = document.documentElement.clientHeight;
 	var widthMargin = 0;
 	var heightMargin = 0;
+
 	if (currentWidth * NM_MicDisplay_canvasSize.height / NM_MicDisplay_canvasSize.width > currentHeight) {
 		currentWidth = currentHeight * NM_MicDisplay_canvasSize.width / NM_MicDisplay_canvasSize.height;
 		widthMargin = (document.documentElement.clientWidth - currentWidth) * 0.5;
@@ -359,15 +388,36 @@ function NM_MicDislay_adjustCanvasSize() {
 		currentHeight = currentWidth * NM_MicDisplay_canvasSize.height / NM_MicDisplay_canvasSize.width;
 		heightMargin = (document.documentElement.clientHeight - currentHeight) * 0.5;
 	}
+	if (windowShareMode) {
+		currentWidth *= canvasScaleInWindowShareMode;
+		currentHeight *= canvasScaleInWindowShareMode;
+		if (initFlag) {
+			canvasPositionXInWindowShareMode = (document.documentElement.clientWidth - currentWidth);
+			canvasPositionYInWindowShareMode = (document.documentElement.clientHeight - currentHeight);
+		}
+		if (canvasPositionXInWindowShareMode < 0) {
+			canvasPositionXInWindowShareMode = 0;
+		}
+		if (canvasPositionXInWindowShareMode > (document.documentElement.clientWidth - currentWidth)) {
+			canvasPositionXInWindowShareMode = (document.documentElement.clientWidth - currentWidth);
+		}
+		if (canvasPositionYInWindowShareMode < 0) {
+			canvasPositionYInWindowShareMode = 0;
+		}
+		if (canvasPositionYInWindowShareMode > (document.documentElement.clientHeight - currentHeight)) {
+			canvasPositionYInWindowShareMode = (document.documentElement.clientHeight - currentHeight);
+		}
+		widthMargin = canvasPositionXInWindowShareMode;
+		heightMargin = canvasPositionYInWindowShareMode;
+	}
 
 	if (c.width != currentWidth || c.height != currentHeight) {
 		c.width = currentWidth;
 		c.height = currentHeight;
-		c.style.margin = heightMargin.toString() + "px "
-			+ widthMargin.toString() + "px";
 		gl.viewport(0, 0, c.width, c.height);
-		gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+		gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
 	}
+	c.style.margin = heightMargin.toString() + "px " + widthMargin.toString() + "px";
 }
 
 async function NM_MicDisplay_init(micStream) {
@@ -376,7 +426,11 @@ async function NM_MicDisplay_init(micStream) {
 		return;
 	}
 	gl=c.getContext('webgl')||c.getContext('experimental-webgl');
-	NM_MicDislay_adjustCanvasSize();
+	NM_MicDislay_adjustCanvasSize(true);
+	c.addEventListener("mousedown", NM_MicDisplay_mouseDownEvent);
+	c.addEventListener("mouseup", NM_MicDisplay_mouseUpEvent);
+	c.addEventListener("mouseleave", NM_MicDisplay_mouseUpEvent);
+	c.addEventListener("mousemove", NM_MicDisplay_mouseMoveEvent);
 	await NM_MicDisplay_micInit(micStream);
 
 	var v_shader=create_shader('vshader');
@@ -703,7 +757,7 @@ function NM_MicDisplay_drawCapture() {
 	//virtualBackCanvasSizeはvirtualBack.js内の変数
 	var aspect = virtualBackCanvasSize.height / virtualBackCanvasSize.width;
 	m.identity(mMatrix);
-	m.translate(mMatrix, [0.0, 6.0, -6.0], mMatrix);
+	m.translate(mMatrix, [0.0, 5.5, -6.0], mMatrix);
 	m.rotate(mMatrix, Math.PI, [0.0, 1.0, 0.0], mMatrix);
 	m.scale(mMatrix, [captureWidth, captureWidth * aspect, 1.0], mMatrix);
 	m.multiply(vpMatrix, mMatrix, mvpMatrix);
@@ -716,14 +770,14 @@ function NM_MicDisplay_drawCapture() {
 }
 
 function NM_MicDisplay_main(){
-	NM_MicDislay_adjustCanvasSize();
+	NM_MicDislay_adjustCanvasSize(false);
 	if (NM_MicDisplay_loadedTextureNum >= 3) {
 		for (var idx = 0; idx < textureProcess.length; idx++) {
 			textureProcess[idx]();
 		}
 		NM_MicDisplay_updateWave();
 
-		gl.clearColor(0.0,0.0,0.0,0.0);
+		gl.clearColor(0.0, 0.0, 0.0, 0.0);
 		gl.clearDepth(1.0);
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 		NM_MicDisplay_drawEmitWave();

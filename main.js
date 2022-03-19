@@ -1,12 +1,9 @@
-var backgroundColor = {r: 50, g: 0, b: 0};
-var backgroundColorCode = "#" + backgroundColor.r.toString(16).padStart(2, "0")
-    + backgroundColor.g.toString(16).padStart(2, "0") + backgroundColor.b.toString(16).padStart(2, "0");
-
 async function VirtualBB_startProcess() {
     removeEventListener("click", VirtualBB_startProcess);
-    addEventListener("click", VirtualBB_toggleMirror);
+    document.oncontextmenu = VirtualBB_toggleMirror;
     var easyInst = document.getElementById("easyInst");
     easyInst.style.display = "none";
+
     var mediaStream;
     var videoStream;
     var audioStream;
@@ -31,7 +28,25 @@ async function VirtualBB_startProcess() {
     }
 
     await VirtualBack_init(videoStream);
+
+    //共有画面選択
+    try {
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+            audio: true,
+            video: {
+                cursor: "never"
+            }
+        });
+        document.getElementById("underBackground").autoplay = true;
+        document.getElementById("underBackground").srcObject = screenStream;
+
+        windowShareMode = true;
+    }
+    catch (err) {
+        windowShareMode = false;
+    }
     await NM_MicDisplay_init(audioStream);
+
     VirtualBack_main();
     NM_MicDisplay_main();
 }

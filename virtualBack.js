@@ -78,7 +78,7 @@ function drawMaskedTexture(i_ctxInputImage, i_maskWeight) {
     var outputBytes = outputImageData.data;
     var outputPixIdx = 0;
     var edgeSize = 40;
-    var maxAlpha = 180;
+    var maxAlpha = 220;
     for (var y = 0; y < virtualBackTextureSize; y++) {
         var yInputIdx = mapTextureYToCanvas[y] * virtualBackCanvasSize.width;
         for (var x = 0; x < virtualBackTextureSize; x++) {
@@ -91,11 +91,11 @@ function drawMaskedTexture(i_ctxInputImage, i_maskWeight) {
             var byteBaseInputIdx = 4 * inputPixIdx;
             var byteBaseOutputIdx = 4 * outputPixIdx;
 
-            var currentAlpha = maxAlpha * (1.0 - i_maskWeight[inputPixIdx]) + 0.5;
+            var currentAlpha = maxAlpha * (1.0 - i_maskWeight[inputPixIdx]);
             if (edgeDistance < edgeSize) {
                 currentAlpha *= edgeDistance / edgeSize;
             }
-            outputBytes[byteBaseOutputIdx + 3] = parseInt(currentAlpha);
+            outputBytes[byteBaseOutputIdx + 3] = parseInt(currentAlpha + 0.5);
 
             if (outputBytes[byteBaseOutputIdx + 3] <= 0) {
                 outputBytes[byteBaseOutputIdx + 0] = 0;
@@ -118,7 +118,9 @@ function drawMaskedTexture(i_ctxInputImage, i_maskWeight) {
 }
 
 function VirtualBB_toggleMirror() {
-    mirrorVirtualBack = !mirrorVirtualBack
+    mirrorVirtualBack = !mirrorVirtualBack;
+    //右クリックによるメニューを抑制
+    return false;
 }
 
 async function VirtualBack_init(videoStream) {
