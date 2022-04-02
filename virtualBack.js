@@ -13,6 +13,10 @@ var virtualBackTextureCanvas = null;
 var virtualBackTextureCanvasCtx = null;
 var mirrorVirtualBack = false;
 var virtualBackMaskWeight = new Array(virtualBackCanvasSize.height * virtualBackCanvasSize.width);
+var virtualBackOutputImageBuf = new ArrayBuffer(virtualBackTextureSize * virtualBackTextureSize * 4);
+var virtualBackOutputImageBuf8 = new Uint8ClampedArray(virtualBackOutputImageBuf);
+var virtualBackOutputImageData = new Uint32Array(virtualBackOutputImageBuf);
+var virtualBackOutputImage = new ImageData(virtualBackTextureSize, virtualBackTextureSize);
 var processedSegmentResult = null;
 
 function calcMapTextureToCanvas() {
@@ -46,11 +50,9 @@ function calcMapTextureToCanvas() {
 function convertSegmentMaskToMaskWeight(i_segmentResult, i_maskWeight) {
     var pixIdx = 0;
     var softEdgeRange = 6;
-    for (var y = 0; y < virtualBackCanvasSize.height; y++) {
-        for (var x = 0; x < virtualBackCanvasSize.width; x++) {
-            i_maskWeight[pixIdx] = (i_segmentResult.data[pixIdx] == 1 ? 0: softEdgeRange);
-            pixIdx++;
-        }
+    var allPixNum = virtualBackCanvasSize.height * virtualBackCanvasSize.width;
+    for (pixIdx = 0; pixIdx < allPixNum; pixIdx++) {
+        i_maskWeight[pixIdx] = (i_segmentResult.data[pixIdx] == 1 ? 0: softEdgeRange);
     }
 
     var neighborFlag = [true, true, true, true];
@@ -79,21 +81,18 @@ function convertSegmentMaskToMaskWeight(i_segmentResult, i_maskWeight) {
     }
 
     var rangeInv = 1.0 / softEdgeRange;
-    pixIdx = 0;
-    for (var y = 0; y < virtualBackCanvasSize.height; y++) {
-        for (var x = 0; x < virtualBackCanvasSize.width; x++) {
-            i_maskWeight[pixIdx] *= rangeInv;
-            pixIdx++;
-        }
+    for (pixIdx = 0; pixIdx < allPixNum; pixIdx++) {
+        i_maskWeight[pixIdx] *= rangeInv;
     }
 }
 
 function drawMaskedTexture(i_ctxInputImage, i_maskWeight) {
     var inputBytes = i_ctxInputImage.data;
-    var outputImageData = new ImageData(virtualBackTextureSize, virtualBackTextureSize);
-    var outputBytes = outputImageData.data;
+
     var outputPixIdx = 0;
     var maxAlpha = 220;
+    var resultColor = [0.0, 0.0, 0.0, 0.0];
+    var resultColorUint32 = 0;
     for (var y = 0; y < virtualBackTextureSize; y++) {
         var yInputIdx = mapTextureYToCanvas[y] * virtualBackCanvasSize.width;
         for (var x = 0; x < virtualBackTextureSize; x++) {
@@ -108,26 +107,25 @@ function drawMaskedTexture(i_ctxInputImage, i_maskWeight) {
 
             var currentAlpha = maxAlpha * (1.0 - i_maskWeight[inputPixIdx]);
             currentAlpha *= edgeWeight;
-            outputBytes[byteBaseOutputIdx + 3] = parseInt(currentAlpha + 0.5);
+            resultColor[3] = currentAlpha + 0.5;
 
-            if (outputBytes[byteBaseOutputIdx + 3] <= 0) {
-                outputBytes[byteBaseOutputIdx + 0] = 0;
-                outputBytes[byteBaseOutputIdx + 1] = 0;
-                outputBytes[byteBaseOutputIdx + 2] = 0;
+            if (resultColor[3] <= 0) {
+                resultColorUint32 = 0x00;
             }
             else {
                 var grayScale = inputBytes[byteBaseInputIdx + 0] * 0.299 + inputBytes[byteBaseInputIdx + 1] * 0.587
                     + inputBytes[byteBaseInputIdx + 2] * 0.114;
-                outputBytes[byteBaseOutputIdx + 0] = parseInt(grayScale * 0.45 + 255 * 0.05 + 0.5);
-                outputBytes[byteBaseOutputIdx + 1] = parseInt(grayScale * 0.6 + 255 * 0.2 + 0.5);
-                outputBytes[byteBaseOutputIdx + 2] = parseInt(grayScale * 0.6 + 255 * 0.4 + 0.5);
+                resultColor[0] = (grayScale * 0.45 + 255 * 0.05 + 0.5);
+                resultColor[1] = (grayScale * 0.6 + 255 * 0.2 + 0.5);
+                resultColor[2] = (grayScale * 0.6 + 255 * 0.4 + 0.5);
+                resultColorUint32 = (resultColor[0] | (resultColor[1] << 8) | (resultColor[2] << 16) | (resultColor[3] << 24));
             }
-
+            virtualBackOutputImageData[outputPixIdx] = resultColorUint32;
             outputPixIdx++;
         }
     }
-    outputImageData.data = outputBytes;
-    virtualBackTextureCanvasCtx.putImageData(outputImageData, 0, 0);
+    virtualBackOutputImage.data.set(virtualBackOutputImageBuf8);
+    virtualBackTextureCanvasCtx.putImageData(virtualBackOutputImage, 0, 0);
 }
 
 function VirtualBB_toggleMirror() {
