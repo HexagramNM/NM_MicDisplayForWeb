@@ -9,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0"></script>
   <script type="text/javascript" src="globalVariables.js"></script>
   <script type="text/javascript" src="virtualBack.js"></script>
+  <script type="text/javascript" src="sharedWindow.js"></script>
   <script type="text/javascript" src="minMatrix.js"></script>
   <script type="text/javascript" src="NM_MicDisplay.js"></script>
   <script type="text/javascript" src="main.js"></script>
@@ -51,16 +52,25 @@
     クリックしてスタート<br>
     ※起動後マイクとカメラの使用を許可してください。<br>
     ※起動後画面共有のオプションも開きます。共有する画面を選択するとその右下にカメラ映像が入ります。<br>
-    選択しない場合は画面いっぱいにカメラ映像が映ります。<br>
-    ※画面共有状態の場合、ドラッグでカメラ映像を動かすことができます。<br>
-    ※画面を右クリックするとカメラ映像を左右反転させます。<br>
+    選択しない場合は画面いっぱいにカメラ映像が映ります。<br><br>
+    ・カメラ映像について<br>
+    カメラ映像を右クリックすると左右反転します。<br><br>
+    ・画面共有時について<br>
+    画面共有状態の場合、ドラッグでカメラ映像を動かすことができます。<br>
+    Tキーを押すと、共有画面のトリミング設定を開きます。赤枠が出るので、マウスで辺をドラッグしてください。<br><br>
   </div>
   <div id="main">
     <video id="underBackground" style="position: absolute; top: 0px; left: 0px; z-index: 0"></video>
+    <div id="trimmingBox" style="position: absolute; top: 0px; left: 0px; z-index: 1;
+    border-style: solid; color: red; border-color: red; border-width: 3px;
+    user-select: none; display: none">
+      <h2>トリミングモード</h2>
+      辺をドラッグしてください。（Tキーで確定、Rキーで枠のリセット）
+    </div>
     <video id="video" style="display: none"></video>
     <canvas id="intermediate" style="display: none"></canvas>
     <canvas id="virtualBackTexture" style="display: none"></canvas>
-    <canvas id="NM_MicDisplayOutput" style="position: relative; z-index: 1"></canvas>
+    <canvas id="NM_MicDisplayOutput" style="position: relative; z-index: 2"></canvas>
   </div>
 </body>
 </html>

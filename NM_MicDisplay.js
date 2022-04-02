@@ -54,10 +54,8 @@ var textureProcess = new Array();
 
 var NM_MicDisplay_canvasSize = {width: 1280, height: 720};
 var canvasScaleInWindowShareMode = 0.4;
-var previousMousePosX = null;
-var previousMousePosY = null;
-var canvasPositionXInWindowShareMode = 0;
-var canvasPositionYInWindowShareMode = 0;
+var NM_MicDisplay_previousMousePos = [null, null];
+var canvasPositionInWindowShareMode = [0, 0];
 var circleRadius = 13.0;
 var dftElementNum = 19;
 var dftBarMaxLevel = 12;
@@ -296,39 +294,25 @@ function NM_MicDisplay_createSoundWaveBuffer() {
 		soundWavePosition_data[idx * 3] = waveRadius * Math.cos(currentAngle);
 		soundWavePosition_data[idx * 3 + 1] = waveOffsetHeight + waveLineWidthHalf;
 		soundWavePosition_data[idx * 3 + 2] = waveRadius * Math.sin(currentAngle);
-		soundWavePosition_data[(idx + soundDisplayLength) * 3] = waveRadius * Math.cos(currentAngle);
+		soundWavePosition_data[(idx + soundDisplayLength) * 3] = soundWavePosition_data[idx * 3];
 		soundWavePosition_data[(idx + soundDisplayLength) * 3 + 1] = waveOffsetHeight - waveLineWidthHalf;
-		soundWavePosition_data[(idx + soundDisplayLength) * 3 + 2] = waveRadius * Math.sin(currentAngle);
+		soundWavePosition_data[(idx + soundDisplayLength) * 3 + 2] = soundWavePosition_data[idx * 3 + 2];
 		currentAngle += stepAngle;
 
-		if (idx < soundDisplayLength / 2) {
-			soundWaveColor_data[idx * 4] = 0.0;
-			soundWaveColor_data[idx * 4 + 1] = idx * 2.0 / soundDisplayLength;
-			soundWaveColor_data[idx * 4 + 2] = 1.0;
-			soundWaveColor_data[(idx + soundDisplayLength) * 4] = 0.0;
-			soundWaveColor_data[(idx + soundDisplayLength) * 4 + 1] = idx * 2.0 / soundDisplayLength;
-			soundWaveColor_data[(idx + soundDisplayLength) * 4 + 2] = 1.0;
-		}
-		else {
-			soundWaveColor_data[idx * 4] = 0.0;
-			soundWaveColor_data[idx * 4 + 1] = 1.0;
-			soundWaveColor_data[idx * 4 + 2] = 2.0 - idx * 2.0 / soundDisplayLength;
-			soundWaveColor_data[(idx + soundDisplayLength) * 4] = 0.0;
-			soundWaveColor_data[(idx + soundDisplayLength) * 4 + 1] = 1.0;
-			soundWaveColor_data[(idx + soundDisplayLength) * 4 + 2] = 2.0 - idx * 2.0 / soundDisplayLength;
-		}
-
+		soundWaveColor_data[idx * 4] = 0.0;
+		soundWaveColor_data[idx * 4 + 1] = (idx < soundDisplayLength / 2 ? idx * 2.0 / soundDisplayLength: 1.0);
+		soundWaveColor_data[idx * 4 + 2] = (idx < soundDisplayLength / 2 ? 1.0: 2.0 - idx * 2.0 / soundDisplayLength);
 		if (idx < soundDisplayLength * waveStartBlendRate) {
 			soundWaveColor_data[idx * 4 + 3] = idx / (soundDisplayLength * waveStartBlendRate);
-			soundWaveColor_data[(idx + soundDisplayLength) * 4 + 3] = idx / (soundDisplayLength * waveStartBlendRate);
 		}
 		else if (idx > soundDisplayLength * (1.0 - waveStartBlendRate)) {
 			soundWaveColor_data[idx * 4 + 3] = (soundDisplayLength - idx) / (soundDisplayLength * waveStartBlendRate);
-			soundWaveColor_data[(idx + soundDisplayLength) * 4 + 3] = (soundDisplayLength - idx) / (soundDisplayLength * waveStartBlendRate);
 		}
 		else {
 			soundWaveColor_data[idx * 4 + 3] = 1.0;
-			soundWaveColor_data[(idx + soundDisplayLength) * 4 + 3] = 1.0;
+		}
+		for (var colorIdx = 0; colorIdx < 4 * soundDisplayLength; colorIdx++) {
+			soundWaveColor_data[(idx + soundDisplayLength) * 4 + colorIdx] = soundWaveColor_data[idx * 4 + colorIdx];
 		}
 
 		soundWaveDummyTexture_data[idx * 2] = 0.0;
@@ -339,9 +323,9 @@ function NM_MicDisplay_createSoundWaveBuffer() {
 		soundWaveIndex_data[idx * 6] = idx;
 		soundWaveIndex_data[idx * 6 + 1] = idx + soundDisplayLength;
 		soundWaveIndex_data[idx * 6 + 2] = (idx + 1) % soundDisplayLength;
-		soundWaveIndex_data[idx * 6 + 3] = (idx + 1) % soundDisplayLength;
+		soundWaveIndex_data[idx * 6 + 3] = soundWaveIndex_data[idx * 6 + 2];
 		soundWaveIndex_data[idx * 6 + 4] = idx + soundDisplayLength;
-		soundWaveIndex_data[idx * 6 + 5] = ((idx + 1) % soundDisplayLength) + soundDisplayLength;
+		soundWaveIndex_data[idx * 6 + 5] = soundWaveIndex_data[idx * 6 + 2] + soundDisplayLength;
 	}
 
 	soundWavePosition_vbo = create_vbo(soundWavePosition_data, true);
@@ -351,29 +335,25 @@ function NM_MicDisplay_createSoundWaveBuffer() {
 }
 
 function NM_MicDisplay_mouseDownEvent(event) {
-	previousMousePosX = event.pageX;
-	previousMousePosY = event.pageY;
+	NM_MicDisplay_previousMousePos[0] = event.pageX;
+	NM_MicDisplay_previousMousePos[1] = event.pageY;
 }
 
 function NM_MicDisplay_mouseUpEvent(event) {
-	previousMousePosX = null;
-	previousMousePosY = null;
+	NM_MicDisplay_previousMousePos[0] = null;
+	NM_MicDisplay_previousMousePos[1] = null;
 }
 
 function NM_MicDisplay_mouseMoveEvent(event) {
-	if (previousMousePosX != null && previousMousePosY != null) {
-		canvasPositionXInWindowShareMode += event.pageX - previousMousePosX;
-		canvasPositionYInWindowShareMode += event.pageY - previousMousePosY;
-		previousMousePosX = event.pageX;
-		previousMousePosY = event.pageY;
+	if (NM_MicDisplay_previousMousePos[0] != null && NM_MicDisplay_previousMousePos[1] != null) {
+		canvasPositionInWindowShareMode[0] += event.pageX - NM_MicDisplay_previousMousePos[0];
+		canvasPositionInWindowShareMode[1] += event.pageY - NM_MicDisplay_previousMousePos[1];
+		NM_MicDisplay_previousMousePos[0] = event.pageX;
+		NM_MicDisplay_previousMousePos[1] = event.pageY;
 	}
 }
 
 function NM_MicDislay_adjustCanvasSize(initFlag) {
-	var underBackgroundVideo = document.getElementById("underBackground");
-	underBackgroundVideo.width = document.documentElement.clientWidth;
-	underBackgroundVideo.height = document.documentElement.clientHeight;
-
 	var c = document.getElementById('NM_MicDisplayOutput');
 	var currentWidth = document.documentElement.clientWidth;
 	var currentHeight = document.documentElement.clientHeight;
@@ -392,23 +372,23 @@ function NM_MicDislay_adjustCanvasSize(initFlag) {
 		currentWidth *= canvasScaleInWindowShareMode;
 		currentHeight *= canvasScaleInWindowShareMode;
 		if (initFlag) {
-			canvasPositionXInWindowShareMode = (document.documentElement.clientWidth - currentWidth);
-			canvasPositionYInWindowShareMode = (document.documentElement.clientHeight - currentHeight);
+			canvasPositionInWindowShareMode[0] = (document.documentElement.clientWidth - currentWidth);
+			canvasPositionInWindowShareMode[1] = (document.documentElement.clientHeight - currentHeight);
 		}
-		if (canvasPositionXInWindowShareMode < 0) {
-			canvasPositionXInWindowShareMode = 0;
+		if (canvasPositionInWindowShareMode[0] < 0) {
+			canvasPositionInWindowShareMode[0] = 0;
 		}
-		if (canvasPositionXInWindowShareMode > (document.documentElement.clientWidth - currentWidth)) {
-			canvasPositionXInWindowShareMode = (document.documentElement.clientWidth - currentWidth);
+		if (canvasPositionInWindowShareMode[0] > (document.documentElement.clientWidth - currentWidth)) {
+			canvasPositionInWindowShareMode[0] = (document.documentElement.clientWidth - currentWidth);
 		}
-		if (canvasPositionYInWindowShareMode < 0) {
-			canvasPositionYInWindowShareMode = 0;
+		if (canvasPositionInWindowShareMode[1] < 0) {
+			canvasPositionInWindowShareMode[1] = 0;
 		}
-		if (canvasPositionYInWindowShareMode > (document.documentElement.clientHeight - currentHeight)) {
-			canvasPositionYInWindowShareMode = (document.documentElement.clientHeight - currentHeight);
+		if (canvasPositionInWindowShareMode[1] > (document.documentElement.clientHeight - currentHeight)) {
+			canvasPositionInWindowShareMode[1] = (document.documentElement.clientHeight - currentHeight);
 		}
-		widthMargin = canvasPositionXInWindowShareMode;
-		heightMargin = canvasPositionYInWindowShareMode;
+		widthMargin = canvasPositionInWindowShareMode[0];
+		heightMargin = canvasPositionInWindowShareMode[1];
 	}
 
 	if (c.width != currentWidth || c.height != currentHeight) {
@@ -521,23 +501,7 @@ function NM_MicDisplay_updateWave() {
 		currentWaveLevel += Math.abs(value);
 	}
 
-	gl.bindBuffer(gl.ARRAY_BUFFER, soundWavePosition_vbo);
-	gl.bufferSubData(gl.ARRAY_BUFFER, 0, soundWavePosition_data);
-	gl.bindBuffer(gl.ARRAY_BUFFER, null);
-
 	//音量上昇による波動発射状態の管理
-	var currentEmitStatus = false;
-	if (currentWaveLevel > 50 && currentWaveLevel >= 1.2 * previousWaveLevel) {
-		if (!previousEmitStatus) {
-			currentEmitStatus = true;
-			previousEmitStatus = true;
-		}
-	}
-
-	if (currentWaveLevel < previousWaveLevel) {
-		previousEmitStatus = false;
-	}
-
 	for (var emitIdx = 0; emitIdx < emitWaveNum; emitIdx++) {
 		//カウント管理
 		if (emitWaveIsDisplay[emitIdx]) {
@@ -548,15 +512,21 @@ function NM_MicDisplay_updateWave() {
 		}
 	}
 
-	if (currentEmitStatus) {
-		//発射登録
-		for (var emitIdx = 0; emitIdx < emitWaveNum; emitIdx++) {
-			if (!emitWaveIsDisplay[emitIdx]) {
-				emitWaveIsDisplay[emitIdx] = true;
-				emitWaveDisplayCount[emitIdx] = 0;
-				break;
+	if (currentWaveLevel > 50 && currentWaveLevel >= 1.2 * previousWaveLevel) {
+		if (!previousEmitStatus) {
+			//発射登録
+			for (var emitIdx = 0; emitIdx < emitWaveNum; emitIdx++) {
+				if (!emitWaveIsDisplay[emitIdx]) {
+					emitWaveIsDisplay[emitIdx] = true;
+					emitWaveDisplayCount[emitIdx] = 0;
+					break;
+				}
 			}
+			previousEmitStatus = true;
 		}
+	}
+	if (currentWaveLevel < previousWaveLevel) {
+		previousEmitStatus = false;
 	}
 
 	previousWaveLevel = currentWaveLevel;
@@ -722,6 +692,7 @@ function NM_MicDisplay_drawCircle() {
 
 function NM_MicDisplay_drawWave() {
 	gl.bindBuffer(gl.ARRAY_BUFFER, soundWavePosition_vbo);
+	gl.bufferSubData(gl.ARRAY_BUFFER, 0, soundWavePosition_data);
 	gl.enableVertexAttribArray(attLocation[0]);
 	gl.vertexAttribPointer(attLocation[0], attStride[0], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, soundWaveColor_vbo);
@@ -754,7 +725,7 @@ function NM_MicDisplay_drawCapture() {
 	gl.vertexAttribPointer(attLocation[2], attStride[2], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_ibo);
 
-	//virtualBackCanvasSizeはvirtualBack.js内の変数
+	//virtualBackCanvasSizeはglobalVariables.js内の変数
 	var aspect = virtualBackCanvasSize.height / virtualBackCanvasSize.width;
 	m.identity(mMatrix);
 	m.translate(mMatrix, [0.0, 5.5, -6.0], mMatrix);

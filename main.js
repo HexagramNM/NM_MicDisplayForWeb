@@ -1,21 +1,20 @@
 async function VirtualBB_startProcess() {
     removeEventListener("click", VirtualBB_startProcess);
     document.oncontextmenu = VirtualBB_toggleMirror;
-    var easyInst = document.getElementById("easyInst");
-    easyInst.style.display = "none";
+    document.getElementById("easyInst").style.display = "none";
 
-    var mediaStream;
-    var videoStream;
-    var audioStream;
+    var mediaStream = null;
+    var videoStream = null;
+    var audioStream = null;
     try {
         //Webカメラとvideoタグとの関連づけ
         //https://qiita.com/chelcat3/items/02c77b55d080d770530a
         mediaStream = await navigator.mediaDevices.getUserMedia({
             audio: true,
             video: {
-                //virtualBackCanvasSizeはvirtualBack.jsからの変数
-                width: {ideal: virtualBackCanvasSize[0]},
-                height: {ideal: virtualBackCanvasSize[1]}
+                //virtualBackCanvasSizeはglobalVariables.jsからの変数
+                width: {ideal: virtualBackCanvasSize.width},
+                height: {ideal: virtualBackCanvasSize.height}
             }
         });
         //オーディオとビデオの分離
@@ -46,9 +45,11 @@ async function VirtualBB_startProcess() {
         windowShareMode = false;
     }
     await NM_MicDisplay_init(audioStream);
+    SharedWindow_init();
 
     VirtualBack_main();
     NM_MicDisplay_main();
+    SharedWindow_main();
 }
 
 function VirtualBB_main() {

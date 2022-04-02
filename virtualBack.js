@@ -1,11 +1,9 @@
 //設定変数
-var virtualBackCanvasSize = {width: 480, height: 360};
 var virtualBackTextureSize = 512;
 var mapTextureXToCanvas = new Array(virtualBackTextureSize);
 var mapTextureYToCanvas = new Array(virtualBackTextureSize);
-var mapTextureEdgeX = new Array(virtualBackTextureSize);
-var mapTextureEdgeY = new Array(virtualBackTextureSize);
-var softEdgeRange = 6;
+var mapTextureEdgeXWeight = new Array(virtualBackTextureSize);
+var mapTextureEdgeYWeight = new Array(virtualBackTextureSize);
 
 var bodyPixNet = null;
 var videoComponent = null;
@@ -14,46 +12,64 @@ var intermediateCanvasCtx = null;
 var virtualBackTextureCanvas = null;
 var virtualBackTextureCanvasCtx = null;
 var mirrorVirtualBack = false;
-var maskWeight = new Array(virtualBackCanvasSize.height * virtualBackCanvasSize.width);
+var virtualBackMaskWeight = new Array(virtualBackCanvasSize.height * virtualBackCanvasSize.width);
 var processedSegmentResult = null;
+
+function calcMapTextureToCanvas() {
+    var edgeSize = 40;
+    var edgeSizeInv = 1.0 / edgeSize;
+
+    for (var idx = 0; idx < virtualBackTextureSize; idx++) {
+        mapTextureXToCanvas[idx] = parseInt(idx * virtualBackCanvasSize.width / virtualBackTextureSize + 0.5);
+        mapTextureYToCanvas[idx] = parseInt(idx * virtualBackCanvasSize.height / virtualBackTextureSize + 0.5);
+
+        mapTextureEdgeXWeight[idx] = (mapTextureXToCanvas[idx] < virtualBackCanvasSize.width - 1 - mapTextureXToCanvas[idx]
+            ? mapTextureXToCanvas[idx] : virtualBackCanvasSize.width - 1 - mapTextureXToCanvas[idx]);
+        if (edgeSize > mapTextureEdgeXWeight[idx]) {
+            mapTextureEdgeXWeight[idx] *= edgeSizeInv;
+        }
+        else {
+            mapTextureEdgeXWeight[idx] = 1.0;
+        }
+
+        mapTextureEdgeYWeight[idx] = (mapTextureYToCanvas[idx] < virtualBackCanvasSize.height - 1 - mapTextureYToCanvas[idx]
+            ? mapTextureYToCanvas[idx] : virtualBackCanvasSize.height - 1 - mapTextureYToCanvas[idx]);
+        if (edgeSize > mapTextureEdgeYWeight[idx]) {
+            mapTextureEdgeYWeight[idx] *= edgeSizeInv;
+        }
+        else {
+            mapTextureEdgeYWeight[idx] = 1.0;
+        }
+    }
+}
 
 function convertSegmentMaskToMaskWeight(i_segmentResult, i_maskWeight) {
     var pixIdx = 0;
+    var softEdgeRange = 6;
     for (var y = 0; y < virtualBackCanvasSize.height; y++) {
         for (var x = 0; x < virtualBackCanvasSize.width; x++) {
-            if (i_segmentResult.data[pixIdx] == 1) {
-                i_maskWeight[pixIdx] = 0;
-            }
-            else {
-                i_maskWeight[pixIdx] = softEdgeRange;
-            }
+            i_maskWeight[pixIdx] = (i_segmentResult.data[pixIdx] == 1 ? 0: softEdgeRange);
             pixIdx++;
         }
     }
 
+    var neighborFlag = [true, true, true, true];
+    var neighborIndexOffset = [-1, +1, -virtualBackCanvasSize.width, +virtualBackCanvasSize.width];
     for (var count = 1; count < softEdgeRange; count++) {
         pixIdx = 0;
         for (var y = 0; y < virtualBackCanvasSize.height; y++) {
+            neighborFlag[2] = (y >= 1);
+            neighborFlag[3] = (y < virtualBackCanvasSize.height - 1);
             for (var x = 0; x < virtualBackCanvasSize.width; x++) {
-                if (i_maskWeight[pixIdx] >= count) {
-                    if (x >= 1) {
-                        if (i_maskWeight[pixIdx - 1] < count) {
-                            i_maskWeight[pixIdx] = count;
-                        }
-                    }
-                    if (x < virtualBackCanvasSize.width - 1) {
-                        if (i_maskWeight[pixIdx + 1] < count) {
-                            i_maskWeight[pixIdx] = count;
-                        }
-                    }
-                    if (y >= 1) {
-                        if (i_maskWeight[pixIdx - virtualBackCanvasSize.width] < count) {
-                            i_maskWeight[pixIdx] = count;
-                        }
-                    }
-                    if (y < virtualBackCanvasSize.height - 1) {
-                        if (i_maskWeight[pixIdx + virtualBackCanvasSize.width] < count) {
-                            i_maskWeight[pixIdx] = count;
+                if (i_maskWeight[pixIdx] >= softEdgeRange) {
+                    neighborFlag[0] = (x >= 1);
+                    neighborFlag[1] = (x < virtualBackCanvasSize.width - 1);
+                    for (var nIdx = 0; nIdx < 4; nIdx++) {
+                        if (neighborFlag[nIdx]) {
+                            if (i_maskWeight[pixIdx + neighborIndexOffset[nIdx]] < count) {
+                                i_maskWeight[pixIdx] = count;
+                                break;
+                            }
                         }
                     }
                 }
@@ -62,8 +78,8 @@ function convertSegmentMaskToMaskWeight(i_segmentResult, i_maskWeight) {
         }
     }
 
-    pixIdx = 0;
     var rangeInv = 1.0 / softEdgeRange;
+    pixIdx = 0;
     for (var y = 0; y < virtualBackCanvasSize.height; y++) {
         for (var x = 0; x < virtualBackCanvasSize.width; x++) {
             i_maskWeight[pixIdx] *= rangeInv;
@@ -77,7 +93,6 @@ function drawMaskedTexture(i_ctxInputImage, i_maskWeight) {
     var outputImageData = new ImageData(virtualBackTextureSize, virtualBackTextureSize);
     var outputBytes = outputImageData.data;
     var outputPixIdx = 0;
-    var edgeSize = 40;
     var maxAlpha = 220;
     for (var y = 0; y < virtualBackTextureSize; y++) {
         var yInputIdx = mapTextureYToCanvas[y] * virtualBackCanvasSize.width;
@@ -86,15 +101,13 @@ function drawMaskedTexture(i_ctxInputImage, i_maskWeight) {
             if (mirrorVirtualBack) {
                 currentX = (virtualBackTextureSize - 1) - x;
             }
-            var edgeDistance = (mapTextureEdgeX[currentX] < mapTextureEdgeY[y] ? mapTextureEdgeX[currentX]: mapTextureEdgeY[y]);
+            var edgeWeight = (mapTextureEdgeXWeight[currentX] < mapTextureEdgeYWeight[y] ? mapTextureEdgeXWeight[currentX]: mapTextureEdgeYWeight[y]);
             var inputPixIdx = yInputIdx + mapTextureXToCanvas[currentX];
             var byteBaseInputIdx = 4 * inputPixIdx;
             var byteBaseOutputIdx = 4 * outputPixIdx;
 
             var currentAlpha = maxAlpha * (1.0 - i_maskWeight[inputPixIdx]);
-            if (edgeDistance < edgeSize) {
-                currentAlpha *= edgeDistance / edgeSize;
-            }
+            currentAlpha *= edgeWeight;
             outputBytes[byteBaseOutputIdx + 3] = parseInt(currentAlpha + 0.5);
 
             if (outputBytes[byteBaseOutputIdx + 3] <= 0) {
@@ -125,18 +138,12 @@ function VirtualBB_toggleMirror() {
 
 async function VirtualBack_init(videoStream) {
     mirrorVirtualBack = false;
-    for (var idx = 0; idx < virtualBackTextureSize; idx++) {
-        mapTextureXToCanvas[idx] = parseInt(idx * virtualBackCanvasSize.width / virtualBackTextureSize + 0.5);
-        mapTextureYToCanvas[idx] = parseInt(idx * virtualBackCanvasSize.height / virtualBackTextureSize + 0.5);
-        mapTextureEdgeX[idx] = (mapTextureXToCanvas[idx] < virtualBackCanvasSize.width - 1 - mapTextureXToCanvas[idx]
-            ? mapTextureXToCanvas[idx] : virtualBackCanvasSize.width - 1 - mapTextureXToCanvas[idx]);
-        mapTextureEdgeY[idx] = (mapTextureYToCanvas[idx] < virtualBackCanvasSize.height - 1 - mapTextureYToCanvas[idx]
-            ? mapTextureYToCanvas[idx] : virtualBackCanvasSize.height - 1 - mapTextureYToCanvas[idx]);
-    }
+
+    calcMapTextureToCanvas();
 
     virtualBackTextureCanvas = document.getElementById("virtualBackTexture");
     virtualBackTextureCanvas.width = virtualBackTextureSize;
-    virtualBackTextureCanvas.height =virtualBackTextureSize;
+    virtualBackTextureCanvas.height = virtualBackTextureSize;
     virtualBackTextureCanvasCtx = virtualBackTextureCanvas.getContext("2d");
     virtualBackTextureCanvasCtx.font = "30px serif";
     virtualBackTextureCanvasCtx.fillStyle = "white";
@@ -168,8 +175,8 @@ async function VirtualBack_main() {
         flipHorizontal: false
     });
     if (processedSegmentResult) {
-        convertSegmentMaskToMaskWeight(processedSegmentResult, maskWeight);
-        drawMaskedTexture(ctxIntermediateImage, maskWeight);
+        convertSegmentMaskToMaskWeight(processedSegmentResult, virtualBackMaskWeight);
+        drawMaskedTexture(ctxIntermediateImage, virtualBackMaskWeight);
     }
     processedSegmentResult = await bodyPixPromise;
     //var endTime = performance.now();
