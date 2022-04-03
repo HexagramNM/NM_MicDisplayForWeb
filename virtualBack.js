@@ -50,34 +50,67 @@ function calcMapTextureToCanvas() {
 function convertSegmentMaskToMaskWeight(i_segmentResult, i_maskWeight) {
     var pixIdx = 0;
     var softEdgeRange = 6;
-    var allPixNum = virtualBackCanvasSize.height * virtualBackCanvasSize.width;
+    var neighborFlag = [true, true, true, true];
+    var tempWidth = virtualBackCanvasSize.width;
+    var tempHeight = virtualBackCanvasSize.height;
+    var neighborIndex = [[-1, 0], [+1, 0], [0, -1], [0, +1]];
+    var neighborIndexOffset = [-1, +1, -tempWidth, +tempWidth];
+    var allPixNum = tempHeight * tempWidth;
+    var targetPixelIdx = [];
+    var newTargetPixelIdx = [];
+    var targetPixelNum = 0;
+    var neightborPixelIdx = 0;
+
     for (pixIdx = 0; pixIdx < allPixNum; pixIdx++) {
-        i_maskWeight[pixIdx] = (i_segmentResult.data[pixIdx] == 1 ? 0: softEdgeRange);
+        i_maskWeight[pixIdx] = softEdgeRange;
     }
 
-    var neighborFlag = [true, true, true, true];
-    var neighborIndexOffset = [-1, +1, -virtualBackCanvasSize.width, +virtualBackCanvasSize.width];
-    for (var count = 1; count < softEdgeRange; count++) {
-        pixIdx = 0;
-        for (var y = 0; y < virtualBackCanvasSize.height; y++) {
-            neighborFlag[2] = (y >= 1);
-            neighborFlag[3] = (y < virtualBackCanvasSize.height - 1);
-            for (var x = 0; x < virtualBackCanvasSize.width; x++) {
-                if (i_maskWeight[pixIdx] >= softEdgeRange) {
-                    neighborFlag[0] = (x >= 1);
-                    neighborFlag[1] = (x < virtualBackCanvasSize.width - 1);
-                    for (var nIdx = 0; nIdx < 4; nIdx++) {
-                        if (neighborFlag[nIdx]) {
-                            if (i_maskWeight[pixIdx + neighborIndexOffset[nIdx]] < count) {
-                                i_maskWeight[pixIdx] = count;
-                                break;
-                            }
+    pixIdx = 0;
+    for (var y = 0; y < tempHeight; y++) {
+        neighborFlag[2] = (y >= 1);
+        neighborFlag[3] = (y < tempHeight - 1);
+        for (var x = 0; x < tempWidth; x++) {
+            if (i_segmentResult.data[pixIdx] == 1) {
+                neighborFlag[0] = (x >= 1);
+                neighborFlag[1] = (x < virtualBackCanvasSize.width - 1);
+                i_maskWeight[pixIdx] = 0;
+                for (var nIdx = 0; nIdx < 4; nIdx++) {
+                    if (neighborFlag[nIdx]) {
+                        neightborPixelIdx = pixIdx + neighborIndexOffset[nIdx];
+                        if (i_segmentResult.data[neightborPixelIdx] == 0) {
+                            i_maskWeight[neightborPixelIdx] = 1;
+                            targetPixelIdx.push([neightborPixelIdx,
+                                x + neighborIndex[nIdx][0], y + neighborIndex[nIdx][1]]);
                         }
                     }
                 }
-                pixIdx++;
+            }
+            pixIdx++;
+        }
+    }
+
+    for (var count = 2; count < softEdgeRange; count++) {
+        targetPixelNum = targetPixelIdx.length;
+        for (var targetIdx = 0; targetIdx < targetPixelNum; targetIdx++) {
+            neighborFlag[0] = (targetPixelIdx[targetIdx][1] >= 1);
+            neighborFlag[1] = (targetPixelIdx[targetIdx][1] < tempWidth - 1);
+            neighborFlag[2] = (targetPixelIdx[targetIdx][2] >= 1);
+            neighborFlag[3] = (targetPixelIdx[targetIdx][2] < tempHeight - 1);
+            for (var nIdx = 0; nIdx < 4; nIdx++) {
+                if (neighborFlag[nIdx]) {
+                    neightborPixelIdx = targetPixelIdx[targetIdx][0] + neighborIndexOffset[nIdx];
+                    if (i_maskWeight[neightborPixelIdx] > count) {
+                        i_maskWeight[neightborPixelIdx] = count;
+                        newTargetPixelIdx.push([neightborPixelIdx,
+                            targetPixelIdx[targetIdx][1] + neighborIndex[nIdx][0],
+                            targetPixelIdx[targetIdx][2] + neighborIndex[nIdx][1]]);
+                    }
+                }
             }
         }
+
+        targetPixelIdx = newTargetPixelIdx.slice();
+        newTargetPixelIdx = [];
     }
 
     var rangeInv = 1.0 / softEdgeRange;
