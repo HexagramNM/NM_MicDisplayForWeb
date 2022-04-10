@@ -178,6 +178,7 @@ async function VirtualBack_init(videoStream) {
     virtualBackTextureCanvasCtx = virtualBackTextureCanvas.getContext("2d");
     virtualBackTextureCanvasCtx.font = "30px serif";
     virtualBackTextureCanvasCtx.fillStyle = "white";
+    virtualBackTextureInfo.isChanged = true;
 
     intermediateCanvas = document.getElementById("intermediate");
     intermediateCanvas.width = virtualBackCanvasSize.width;
@@ -208,6 +209,7 @@ async function VirtualBack_main() {
     if (processedSegmentResult) {
         convertSegmentMaskToMaskWeight(processedSegmentResult, virtualBackMaskWeight);
         drawMaskedTexture(ctxIntermediateImage, virtualBackMaskWeight);
+        virtualBackTextureInfo.isChanged = true;
     }
     processedSegmentResult = await bodyPixPromise;
     //var endTime = performance.now();

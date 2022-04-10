@@ -108,11 +108,11 @@ function create_texture(source, number) {
 	img.src = source;
 }
 
-function create_texture_from_canvas(canvasId, number) {
+function create_texture_from_canvas(canvasInfo, number) {
 	if (number >= texture_max) {
 		return;
 	}
-	var sourceCanvas = document.getElementById(canvasId);
+	var sourceCanvas = document.getElementById(canvasInfo.canvasName);
 	var tex = gl.createTexture();
 	dynamicTextureSetting();
 	texture[number] = tex;
@@ -120,12 +120,15 @@ function create_texture_from_canvas(canvasId, number) {
 	NM_MicDisplay_loadedTextureNum++;
 
 	function dynamicTextureSetting() {
-		gl.activeTexture(gl["TEXTURE" + number.toString()]);
-		gl.bindTexture(gl.TEXTURE_2D, tex);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
-		gl.generateMipmap(gl.TEXTURE_2D);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+		if (canvasInfo.isChanged) {
+			canvasInfo.isChanged = false;
+			gl.activeTexture(gl["TEXTURE" + number.toString()]);
+			gl.bindTexture(gl.TEXTURE_2D, tex);
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+			gl.generateMipmap(gl.TEXTURE_2D);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+		}
 	}
 }
 
@@ -445,7 +448,7 @@ async function NM_MicDisplay_init(micStream) {
 	create_texture('image/redCircle.png?'+new Date().getTime(), 0);
 	create_texture('image/redCircleLight.png?'+new Date().getTime(), 1);
 	create_texture('image/redCircleWave.png?'+new Date().getTime(), 2);
-	create_texture_from_canvas("virtualBackTexture", 3);
+	create_texture_from_canvas(virtualBackTextureInfo, 3);
 
 	m.lookAt([0.0, 9.0, -18.0], [0,2.0,0], [0, 1, 0], vMatrix);
 	m.perspective(60.0, c.width/c.height, 1.0, 100, pMatrix);
