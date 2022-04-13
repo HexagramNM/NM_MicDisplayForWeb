@@ -8,26 +8,64 @@
   <!-- Load BodyPix -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0"></script>
   <script type="text/javascript" src="globalVariables.js"></script>
+  <script type="text/javascript" src="createWebGLObj.js"></script>
   <script type="text/javascript" src="virtualBack.js"></script>
   <script type="text/javascript" src="sharedWindow.js"></script>
   <script type="text/javascript" src="minMatrix.js"></script>
   <script type="text/javascript" src="NM_MicDisplay.js"></script>
   <script type="text/javascript" src="main.js"></script>
+
   <script id="vshader" type="x-shader/x-vertex">
   		attribute vec3 position;
   		attribute vec4 color;
   		attribute vec2 textureCoord;
   		uniform mat4 mvpMatrix;
-      uniform float pointSize;
   		varying vec4 vColor;
   		varying vec2 vTextureCoord;
   		void main(void) {
   			vColor = color;
   			vTextureCoord = textureCoord;
   			gl_Position = mvpMatrix*vec4(position, 1.0);
-        gl_PointSize = pointSize;
   		}
   </script>
+
+  <script id="backMaskShader" type="x-shader/x-fragment">
+      precision mediump float;
+      uniform sampler2D texture;
+      varying vec4 vColor;
+      varying vec2 vTextureCoord;
+      void main(void) {
+        vec4 smpColor = texture2D(texture, vTextureCoord);
+        float grayScale = smpColor.r * 0.299 + smpColor.g * 0.587 + smpColor.b * 0.114;
+        float canvasWidth = 480.0;
+        float canvasHeight = 360.0;
+        float edgeSize = 40.0;
+        float widthEdge = edgeSize / canvasWidth;
+        float heightEdge = edgeSize / canvasHeight;
+        float maxAlpha = 220.0 / 255.0;
+        float edgeAlpha = 1.0;
+        float outerAlpha = 0.0;
+
+        smpColor.r = (grayScale * 0.45 + 0.05);
+        smpColor.g = (grayScale * 0.6 + 0.2);
+        smpColor.b = (grayScale * 0.6 + 0.4);
+
+        edgeAlpha = clamp(vTextureCoord.x, 0.0, widthEdge) / widthEdge;
+        edgeAlpha = min(clamp(1.0 - vTextureCoord.x, 0.0, widthEdge) / widthEdge, edgeAlpha);
+        edgeAlpha = min(clamp(vTextureCoord.y, 0.0, heightEdge) / heightEdge, edgeAlpha);
+        edgeAlpha = min(clamp(1.0 - vTextureCoord.y, 0.0, heightEdge) / heightEdge, edgeAlpha);
+
+        for (float y = -4.0; y <= 4.0; y += 1.0) {
+            for (float x = -4.0; x <= 4.0; x += 1.0) {
+                outerAlpha = max(outerAlpha,
+                    texture2D(texture, vTextureCoord + vec2(x / canvasWidth, y / canvasHeight)).a * clamp(6.0 - abs(x) - abs(y), 0.0, 6.0) / 6.0);
+            }
+        }
+        smpColor.a = maxAlpha * edgeAlpha * outerAlpha;
+        gl_FragColor = vColor * smpColor;
+      }
+  </script>
+
   <script id="fshader" type="x-shader/x-fragment">
   		precision mediump float;
       uniform int enableTexture;
@@ -47,6 +85,7 @@
   		</script>
   </head>
 </head>
+
 <body onload="VirtualBB_main()" style="margin: 0; padding: 0; overflow: hidden">
   <div id="easyInst" style="color: #FFFFFF">
     クリックしてスタート<br>
@@ -69,7 +108,6 @@
     </div>
     <video id="video" style="display: none"></video>
     <canvas id="intermediate" style="display: none"></canvas>
-    <canvas id="virtualBackTexture" style="display: none"></canvas>
     <canvas id="NM_MicDisplayOutput" style="position: relative; z-index: 2"></canvas>
   </div>
 </body>

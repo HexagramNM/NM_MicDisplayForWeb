@@ -1,7 +1,5 @@
-var NM_MicDisplay_loadedTextureNum = 0;
+
 var NM_MicDisplay_count = 0;
-var gl;
-var texture_max;
 
 var micAnalyser;
 var waveData;
@@ -22,14 +20,25 @@ var pMatrix = m.identity(m.create());
 var vpMatrix = m.identity(m.create());
 var mvpMatrix = m.identity(m.create());
 
-var attLocation = new Array();
-var attStride = new Array();
-var uniLocation = new Array();
+var normalShaderInfo = {
+	program: null,
+	attLocation: new Array(),
+	attStride: new Array(),
+	uniLocation: new Array()
+}
+
+var virtualBackShaderInfo = {
+	program: null,
+	attLocation: new Array(),
+	attStride: new Array(),
+	uniLocation: new Array()
+}
+
 var index = [
 	0, 2, 1,
 	1, 2, 3
 ];
-var texture;
+
 var position_vbo;
 var color_vbo;
 var texture_vbo;
@@ -50,7 +59,6 @@ var soundWavePosition_vbo;
 var soundWaveColor_vbo;
 var soundWaveDummyTexture_vbo;
 var soundWaveIndex_ibo;
-var textureProcess = new Array();
 
 var NM_MicDisplay_canvasSize = {width: 1280, height: 720};
 var canvasScaleInWindowShareMode = 0.4;
@@ -67,70 +75,6 @@ var waveLevelRateThreshold = 1.2;
 var waveLineWidthHalf = 0.08;
 var waveOffsetHeight = 4.0;
 var captureWidth = 7.0;
-
-function create_vbo(data, isDynamic=false) {
-	var vbo=gl.createBuffer();
-	gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-	if (isDynamic) {
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.DYNAMIC_DRAW);
-	}
-	else {
-		gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
-	}
-	gl.bindBuffer(gl.ARRAY_BUFFER, null);
-	return vbo;
-}
-
-function create_ibo(data) {
-	var ibo = gl.createBuffer();
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-	gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(data), gl.STATIC_DRAW);
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-	return ibo;
-}
-
-function create_texture(source, number) {
-	if (number >= texture_max) {
-		return;
-	}
-	var img = new Image();
-	img.onload = function() {
-		var tex = gl.createTexture();
-		gl.activeTexture(gl["TEXTURE" + number.toString()]);
-		gl.bindTexture(gl.TEXTURE_2D, tex);
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-		gl.generateMipmap(gl.TEXTURE_2D);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
-		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-		texture[number] = tex;
-		NM_MicDisplay_loadedTextureNum++;
-	};
-	img.src = source;
-}
-
-function create_texture_from_canvas(canvasInfo, number) {
-	if (number >= texture_max) {
-		return;
-	}
-	var sourceCanvas = document.getElementById(canvasInfo.canvasName);
-	var tex = gl.createTexture();
-	dynamicTextureSetting();
-	texture[number] = tex;
-	textureProcess.push(dynamicTextureSetting);
-	NM_MicDisplay_loadedTextureNum++;
-
-	function dynamicTextureSetting() {
-		if (canvasInfo.isChanged) {
-			canvasInfo.isChanged = false;
-			gl.activeTexture(gl["TEXTURE" + number.toString()]);
-			gl.bindTexture(gl.TEXTURE_2D, tex);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
-			gl.generateMipmap(gl.TEXTURE_2D);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-		}
-	}
-}
 
 async function NM_MicDisplay_micInit(micStream) {
 	const audioCtx = new AudioContext();
@@ -409,6 +353,8 @@ async function NM_MicDisplay_init(micStream) {
 		return;
 	}
 	gl=c.getContext('webgl')||c.getContext('experimental-webgl');
+	texture_max = gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS);
+
 	NM_MicDislay_adjustCanvasSize(true);
 	c.addEventListener("mousedown", NM_MicDisplay_mouseDownEvent);
 	c.addEventListener("mouseup", NM_MicDisplay_mouseUpEvent);
@@ -418,17 +364,17 @@ async function NM_MicDisplay_init(micStream) {
 
 	var v_shader=create_shader('vshader');
 	var f_shader=create_shader('fshader');
+	var backMaskFragmentShader=create_shader('backMaskShader');
 
-	var prg=create_program(v_shader, f_shader);
-	texture_max = gl.getParameter(gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS);
-	texture = new Array(texture_max);
+	//normalShaderのプログラム設定
+	normalShaderInfo.program = create_program(v_shader, f_shader);
+	setupCommonShaderProgram(normalShaderInfo);
+	normalShaderInfo.uniLocation[2] = gl.getUniformLocation(normalShaderInfo.program, 'enableTexture');
+	normalShaderInfo.uniLocation[3] = gl.getUniformLocation(normalShaderInfo.program, 'globalColor');
 
-	attLocation[0]=gl.getAttribLocation(prg, 'position');
-	attLocation[1]=gl.getAttribLocation(prg, 'color');
-	attLocation[2]=gl.getAttribLocation(prg, 'textureCoord');
-	attStride[0]=3;
-	attStride[1]=4;
-	attStride[2]=2;
+	//virtualBackShaderのプログラム設定
+	virtualBackShaderInfo.program = create_program(v_shader, backMaskFragmentShader);
+	setupCommonShaderProgram(virtualBackShaderInfo);
 
 	NM_MicDisplay_createPlaneBuffer();
 	NM_MicDisplay_createDftBarBuffer()
@@ -439,55 +385,24 @@ async function NM_MicDisplay_init(micStream) {
 	gl.enable(gl.DEPTH_TEST);
 	gl.depthFunc(gl.LEQUAL);
 
-	uniLocation[0] = gl.getUniformLocation(prg, 'mvpMatrix');
-	uniLocation[1] = gl.getUniformLocation(prg, 'pointSize');
-	uniLocation[2] = gl.getUniformLocation(prg, 'enableTexture');
-	uniLocation[3] = gl.getUniformLocation(prg, 'texture');
-	uniLocation[4] = gl.getUniformLocation(prg, 'globalColor');
-
 	create_texture('image/redCircle.png?'+new Date().getTime(), 0);
 	create_texture('image/redCircleLight.png?'+new Date().getTime(), 1);
 	create_texture('image/redCircleWave.png?'+new Date().getTime(), 2);
-	create_texture_from_canvas(virtualBackTextureInfo, 3);
+	create_dynamic_texture(virtualBackTextureInfo, 3);
 
 	m.lookAt([0.0, 9.0, -18.0], [0,2.0,0], [0, 1, 0], vMatrix);
 	m.perspective(60.0, c.width/c.height, 1.0, 100, pMatrix);
 	m.multiply(pMatrix, vMatrix, vpMatrix);
 
-	function create_shader(id) {
-		var shader;
-		var scriptElement=document.getElementById(id);
-		if (!scriptElement){return;}
-		switch(scriptElement.type) {
-			case 'x-shader/x-vertex':
-				shader=gl.createShader(gl.VERTEX_SHADER);
-				break;
-			case 'x-shader/x-fragment':
-				shader=gl.createShader(gl.FRAGMENT_SHADER);
-				break;
-			default:
-				return;
-		}
-		gl.shaderSource(shader, scriptElement.text);
-		gl.compileShader(shader);
-		if (gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-			return shader;
-		} else {
-			alert(gl.getShaderInfoLog(shader));
-		}
-	}
-
-	function create_program(vs, fs) {
-		var program=gl.createProgram();
-		gl.attachShader(program, vs);
-		gl.attachShader(program, fs);
-		gl.linkProgram(program);
-		if (gl.getProgramParameter(program, gl.LINK_STATUS)) {
-			gl.useProgram(program);
-			return program;
-		} else {
-			alert(gl.getProgramInfoLog(program));
-		}
+	function setupCommonShaderProgram(shaderInfo) {
+	    shaderInfo.attLocation[0]=gl.getAttribLocation(shaderInfo.program, 'position');
+	    shaderInfo.attLocation[1]=gl.getAttribLocation(shaderInfo.program, 'color');
+	    shaderInfo.attLocation[2]=gl.getAttribLocation(shaderInfo.program, 'textureCoord');
+	    shaderInfo.attStride[0]=3;
+	    shaderInfo.attStride[1]=4;
+	    shaderInfo.attStride[2]=2;
+	    shaderInfo.uniLocation[0] = gl.getUniformLocation(shaderInfo.program, 'mvpMatrix');
+	    shaderInfo.uniLocation[1] = gl.getUniformLocation(shaderInfo.program, 'texture');
 	}
 }
 
@@ -503,7 +418,9 @@ function NM_MicDisplay_updateWave() {
 
 		currentWaveLevel += Math.abs(value);
 	}
+}
 
+function NM_MicDisplay_updateEmitWave() {
 	//音量上昇による波動発射状態の管理
 	for (var emitIdx = 0; emitIdx < emitWaveNum; emitIdx++) {
 		//カウント管理
@@ -533,13 +450,17 @@ function NM_MicDisplay_updateWave() {
 	}
 
 	previousWaveLevel = currentWaveLevel;
+}
 
+function NM_MicDisplay_updateCircleAlpha() {
 	//音量による魔法陣の透過率
 	var waveAlphaMaxRate = 150.0;
 	var alphaRate = (currentWaveLevel > waveAlphaMaxRate ? 1.0: currentWaveLevel / waveAlphaMaxRate);
 	circleColor[3] = 0.3 + 0.7 * alphaRate;
 	circleLightColor[3] = 0.7 *alphaRate;
+}
 
+function NM_MicDisplay_updateDftLevel() {
 	//FFTによる周波数レベルの取得
 	micAnalyser.getByteFrequencyData(frequencyData);
 	var dftLevelMaxRate = 0.75;
@@ -567,18 +488,17 @@ function NM_MicDisplay_updateWave() {
 
 function NM_MicDisplay_drawEmitWave() {
 	gl.bindBuffer(gl.ARRAY_BUFFER, position_vbo);
-	gl.enableVertexAttribArray(attLocation[0]);
-	gl.vertexAttribPointer(attLocation[0], attStride[0], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[0]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[0], normalShaderInfo.attStride[0], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, color_vbo);
-	gl.enableVertexAttribArray(attLocation[1]);
-	gl.vertexAttribPointer(attLocation[1], attStride[1], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[1]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[1], normalShaderInfo.attStride[1], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, texture_vbo);
-	gl.enableVertexAttribArray(attLocation[2]);
-	gl.vertexAttribPointer(attLocation[2], attStride[2], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[2]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[2], normalShaderInfo.attStride[2], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_ibo);
-	gl.uniform1f(uniLocation[1], 1.0);
-	gl.uniform1i(uniLocation[2], 1);
-	gl.uniform1i(uniLocation[3], 2);
+	gl.uniform1i(normalShaderInfo.uniLocation[1], 2);
+	gl.uniform1i(normalShaderInfo.uniLocation[2], 1);
 
 	for (var emitIdx = 0; emitIdx < emitWaveNum; emitIdx++) {
 		if (emitWaveIsDisplay[emitIdx]) {
@@ -591,55 +511,55 @@ function NM_MicDisplay_drawEmitWave() {
 			m.multiply(vpMatrix, mMatrix, mvpMatrix);
 			emitWaveColor[3] = alpha
 
-			gl.uniformMatrix4fv(uniLocation[0], false, mvpMatrix);
-			gl.uniform4fv(uniLocation[4], emitWaveColor);
+			gl.uniformMatrix4fv(normalShaderInfo.uniLocation[0], false, mvpMatrix);
+			gl.uniform4fv(normalShaderInfo.uniLocation[3], emitWaveColor);
 			gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
 		}
 	}
 }
 
-function NM_MicDisplay_drawDftBar() {
+function NM_MicDisplay_drawDftBarBackFrame() {
 	//後ろの枠
 	gl.bindBuffer(gl.ARRAY_BUFFER, dftBarFramePosition_vbo);
-	gl.enableVertexAttribArray(attLocation[0]);
-	gl.vertexAttribPointer(attLocation[0], attStride[0], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[0]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[0], normalShaderInfo.attStride[0], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, dftBarFrameDummyTexture_vbo);
-	gl.enableVertexAttribArray(attLocation[2]);
-	gl.vertexAttribPointer(attLocation[2], attStride[2], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[2]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[2], normalShaderInfo.attStride[2], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, dftBarFrameIndex_ibo);
-	gl.uniform1f(uniLocation[1], 1.0);
-	gl.uniform1i(uniLocation[2], 0);
-	gl.uniform1i(uniLocation[3], 0);
-	gl.uniform4fv(uniLocation[4], defaultGlobalColor);
+	gl.uniform1i(normalShaderInfo.uniLocation[1], 0);
+	gl.uniform1i(normalShaderInfo.uniLocation[2], 0);
+	gl.uniform4fv(normalShaderInfo.uniLocation[3], defaultGlobalColor);
 	for (var dftElemIdx = 0; dftElemIdx < dftElementNum; dftElemIdx++) {
 		for (var levelIdx = 0; levelIdx < previousDftWaveLevel[dftElemIdx]; levelIdx++) {
 			gl.bindBuffer(gl.ARRAY_BUFFER, dftBarFrameColor_vboArray[levelIdx]);
-			gl.enableVertexAttribArray(attLocation[1]);
-			gl.vertexAttribPointer(attLocation[1], attStride[1], gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(normalShaderInfo.attLocation[1]);
+			gl.vertexAttribPointer(normalShaderInfo.attLocation[1], normalShaderInfo.attStride[1], gl.FLOAT, false, 0, 0);
 
 			m.identity(mMatrix);
 			m.rotate(mMatrix, (75.0 - 150.0 * dftElemIdx / (dftElementNum - 1)) * Math.PI / 180.0, [0.0, 1.0, 0.0], mMatrix);
 			m.translate(mMatrix, [0.0, 0.5 + 1.0 * levelIdx, circleRadius + 0.4], mMatrix);
 			m.multiply(vpMatrix, mMatrix, mvpMatrix);
 
-			gl.uniformMatrix4fv(uniLocation[0], false, mvpMatrix);
+			gl.uniformMatrix4fv(normalShaderInfo.uniLocation[0], false, mvpMatrix);
 			gl.drawElements(gl.TRIANGLES, dftBarFrameIndex_data.length, gl.UNSIGNED_SHORT, 0);
 		}
 	}
+}
 
-	//前の枠
+function NM_MicDisplay_drawDftBarFrontBody() {
 	gl.bindBuffer(gl.ARRAY_BUFFER, position_vbo);
-	gl.enableVertexAttribArray(attLocation[0]);
-	gl.vertexAttribPointer(attLocation[0], attStride[0], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[0]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[0], normalShaderInfo.attStride[0], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, texture_vbo);
-	gl.enableVertexAttribArray(attLocation[2]);
-	gl.vertexAttribPointer(attLocation[2], attStride[2], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[2]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[2], normalShaderInfo.attStride[2], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_ibo);
 	for (var dftElemIdx = 0; dftElemIdx < dftElementNum; dftElemIdx++) {
 		for (var levelIdx = 0; levelIdx < currentDftWaveLevel[dftElemIdx]; levelIdx++) {
 			gl.bindBuffer(gl.ARRAY_BUFFER, dftBarColor_vboArray[levelIdx]);
-			gl.enableVertexAttribArray(attLocation[1]);
-			gl.vertexAttribPointer(attLocation[1], attStride[1], gl.FLOAT, false, 0, 0);
+			gl.enableVertexAttribArray(normalShaderInfo.attLocation[1]);
+			gl.vertexAttribPointer(normalShaderInfo.attLocation[1], normalShaderInfo.attStride[1], gl.FLOAT, false, 0, 0);
 
 			m.identity(mMatrix);
 			m.rotate(mMatrix, (75.0 - 150.0 * dftElemIdx / (dftElementNum - 1)) * Math.PI / 180.0, [0.0, 1.0, 0.0], mMatrix);
@@ -647,7 +567,7 @@ function NM_MicDisplay_drawDftBar() {
 			m.scale(mMatrix, [0.8, 0.4, 1.0], mMatrix);
 			m.multiply(vpMatrix, mMatrix, mvpMatrix);
 
-			gl.uniformMatrix4fv(uniLocation[0], false, mvpMatrix);
+			gl.uniformMatrix4fv(normalShaderInfo.uniLocation[0], false, mvpMatrix);
 			gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
 		}
 	}
@@ -655,14 +575,14 @@ function NM_MicDisplay_drawDftBar() {
 
 function NM_MicDisplay_drawCircle() {
 	gl.bindBuffer(gl.ARRAY_BUFFER, position_vbo);
-	gl.enableVertexAttribArray(attLocation[0]);
-	gl.vertexAttribPointer(attLocation[0], attStride[0], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[0]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[0], normalShaderInfo.attStride[0], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, color_vbo);
-	gl.enableVertexAttribArray(attLocation[1]);
-	gl.vertexAttribPointer(attLocation[1], attStride[1], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[1]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[1], normalShaderInfo.attStride[1], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, texture_vbo);
-	gl.enableVertexAttribArray(attLocation[2]);
-	gl.vertexAttribPointer(attLocation[2], attStride[2], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[2]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[2], normalShaderInfo.attStride[2], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_ibo);
 
 	var rad=(NM_MicDisplay_count%720)*Math.PI/360;
@@ -675,57 +595,54 @@ function NM_MicDisplay_drawCircle() {
 
 	//魔法陣発光部分
 	m.multiply(vpMatrix, mMatrix, mvpMatrix);
-	gl.uniformMatrix4fv(uniLocation[0], false, mvpMatrix);
-	gl.uniform1f(uniLocation[1], 1.0);
-	gl.uniform1i(uniLocation[2], 1);
-	gl.uniform1i(uniLocation[3], 1);
-	gl.uniform4fv(uniLocation[4], circleLightColor);
+	gl.uniformMatrix4fv(normalShaderInfo.uniLocation[0], false, mvpMatrix);
+	gl.uniform1i(normalShaderInfo.uniLocation[1], 1);
+	gl.uniform1i(normalShaderInfo.uniLocation[2], 1);
+	gl.uniform4fv(normalShaderInfo.uniLocation[3], circleLightColor);
 	gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
 
 	//魔法陣本体
 	m.translate(mMatrix, [0.0, 0.0, -0.001], mMatrix);
 	m.multiply(vpMatrix, mMatrix, mvpMatrix);
-	gl.uniformMatrix4fv(uniLocation[0], false, mvpMatrix);
-	gl.uniform1f(uniLocation[1], 1.0);
-	gl.uniform1i(uniLocation[2], 1);
-	gl.uniform1i(uniLocation[3], 0);
-	gl.uniform4fv(uniLocation[4], circleColor);
+	gl.uniformMatrix4fv(normalShaderInfo.uniLocation[0], false, mvpMatrix);
+	gl.uniform1i(normalShaderInfo.uniLocation[1], 0);
+	gl.uniform1i(normalShaderInfo.uniLocation[2], 1);
+	gl.uniform4fv(normalShaderInfo.uniLocation[3], circleColor);
 	gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
 }
 
 function NM_MicDisplay_drawWave() {
 	gl.bindBuffer(gl.ARRAY_BUFFER, soundWavePosition_vbo);
 	gl.bufferSubData(gl.ARRAY_BUFFER, 0, soundWavePosition_data);
-	gl.enableVertexAttribArray(attLocation[0]);
-	gl.vertexAttribPointer(attLocation[0], attStride[0], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[0]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[0], normalShaderInfo.attStride[0], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, soundWaveColor_vbo);
-	gl.enableVertexAttribArray(attLocation[1]);
-	gl.vertexAttribPointer(attLocation[1], attStride[1], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[1]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[1], normalShaderInfo.attStride[1], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, soundWaveDummyTexture_vbo);
-	gl.enableVertexAttribArray(attLocation[2]);
-	gl.vertexAttribPointer(attLocation[2], attStride[2], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(normalShaderInfo.attLocation[2]);
+	gl.vertexAttribPointer(normalShaderInfo.attLocation[2], normalShaderInfo.attStride[2], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, soundWaveIndex_vbo);
 
 	m.identity(mMatrix);
 	m.multiply(vpMatrix, mMatrix, mvpMatrix);
-	gl.uniformMatrix4fv(uniLocation[0], false, mvpMatrix);
-	gl.uniform1f(uniLocation[1], 1.0);
-	gl.uniform1i(uniLocation[2], 0);
-	gl.uniform1i(uniLocation[3], 0);
-	gl.uniform4fv(uniLocation[4], defaultGlobalColor);
+	gl.uniformMatrix4fv(normalShaderInfo.uniLocation[0], false, mvpMatrix);
+	gl.uniform1i(normalShaderInfo.uniLocation[1], 0);
+	gl.uniform1i(normalShaderInfo.uniLocation[2], 0);
+	gl.uniform4fv(normalShaderInfo.uniLocation[3], defaultGlobalColor);
 	gl.drawElements(gl.TRIANGLES, soundDisplayLength * 6, gl.UNSIGNED_SHORT, 0);
 }
 
 function NM_MicDisplay_drawCapture() {
 	gl.bindBuffer(gl.ARRAY_BUFFER, position_vbo);
-	gl.enableVertexAttribArray(attLocation[0]);
-	gl.vertexAttribPointer(attLocation[0], attStride[0], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(virtualBackShaderInfo.attLocation[0]);
+	gl.vertexAttribPointer(virtualBackShaderInfo.attLocation[0], virtualBackShaderInfo.attStride[0], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, color_vbo);
-	gl.enableVertexAttribArray(attLocation[1]);
-	gl.vertexAttribPointer(attLocation[1], attStride[1], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(virtualBackShaderInfo.attLocation[1]);
+	gl.vertexAttribPointer(virtualBackShaderInfo.attLocation[1], virtualBackShaderInfo.attStride[1], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ARRAY_BUFFER, texture_vbo);
-	gl.enableVertexAttribArray(attLocation[2]);
-	gl.vertexAttribPointer(attLocation[2], attStride[2], gl.FLOAT, false, 0, 0);
+	gl.enableVertexAttribArray(virtualBackShaderInfo.attLocation[2]);
+	gl.vertexAttribPointer(virtualBackShaderInfo.attLocation[2], virtualBackShaderInfo.attStride[2], gl.FLOAT, false, 0, 0);
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_ibo);
 
 	//virtualBackCanvasSizeはglobalVariables.js内の変数
@@ -735,29 +652,29 @@ function NM_MicDisplay_drawCapture() {
 	m.rotate(mMatrix, Math.PI, [0.0, 1.0, 0.0], mMatrix);
 	m.scale(mMatrix, [captureWidth, captureWidth * aspect, 1.0], mMatrix);
 	m.multiply(vpMatrix, mMatrix, mvpMatrix);
-	gl.uniformMatrix4fv(uniLocation[0], false, mvpMatrix);
-	gl.uniform1f(uniLocation[1], 1.0);
-	gl.uniform1i(uniLocation[2], 1);
-	gl.uniform1i(uniLocation[3], 3);
-	gl.uniform4fv(uniLocation[4], defaultGlobalColor);
+	gl.uniformMatrix4fv(virtualBackShaderInfo.uniLocation[0], false, mvpMatrix);
+	gl.uniform1i(virtualBackShaderInfo.uniLocation[1], 3);
 	gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
 }
 
 function NM_MicDisplay_main(){
 	NM_MicDislay_adjustCanvasSize(false);
-	if (NM_MicDisplay_loadedTextureNum >= 3) {
-		for (var idx = 0; idx < textureProcess.length; idx++) {
-			textureProcess[idx]();
-		}
+	if (finish_load_texture()) {
 		NM_MicDisplay_updateWave();
+		NM_MicDisplay_updateEmitWave();
+		NM_MicDisplay_updateCircleAlpha();
+		NM_MicDisplay_updateDftLevel();
 
 		gl.clearColor(0.0, 0.0, 0.0, 0.0);
 		gl.clearDepth(1.0);
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+		gl.useProgram(normalShaderInfo.program);
 		NM_MicDisplay_drawEmitWave();
-		NM_MicDisplay_drawDftBar();
+		NM_MicDisplay_drawDftBarBackFrame();
+		NM_MicDisplay_drawDftBarFrontBody();
 		NM_MicDisplay_drawCircle();
 		NM_MicDisplay_drawWave();
+		gl.useProgram(virtualBackShaderInfo.program);
 		NM_MicDisplay_drawCapture();
 		gl.flush();
 		NM_MicDisplay_count++;

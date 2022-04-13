@@ -46,6 +46,7 @@ async function VirtualBB_startProcess() {
     }
     await NM_MicDisplay_init(audioStream);
     SharedWindow_init();
+    process_dynamic_texture();
 
     VirtualBack_main();
     NM_MicDisplay_main();
