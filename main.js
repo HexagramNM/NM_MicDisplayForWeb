@@ -135,5 +135,6 @@ async function VirtualBB_main() {
 
     VirtualBB_createDeviceSelector();
 
+    document.getElementById("startButton").disabled = false;
     document.getElementById("startButton").addEventListener("click", VirtualBB_startProcess);
 }
