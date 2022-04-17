@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
+  <link rel="icon" href="image/NM_MicDisplay_icon.ico">
   <title>NM_MicDisplay for Web</title>
   <!-- Load TensorFlow.js -->
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.2"></script>
@@ -88,15 +89,22 @@
 
 <body onload="VirtualBB_main()" style="margin: 0; padding: 0; overflow: hidden">
   <div id="easyInst" style="color: #FFFFFF">
-    クリックしてスタート<br>
-    ※起動後マイクとカメラの使用を許可してください。<br>
-    ※起動後画面共有のオプションも開きます。共有する画面を選択するとその右下にカメラ映像が入ります。<br>
+    <h2>使用方法</h2>
+    1. マイクやカメラについて使用許可の確認画面が出てきたら、許可してください。<br>
+    2. 使用するマイク、カメラを選択し、スタートボタンを押してください。<br>
+    3. 起動後画面共有のオプションも開きます。共有する画面を選択するとその右下にカメラ映像が入ります。<br>
     選択しない場合は画面いっぱいにカメラ映像が映ります。<br><br>
     ・カメラ映像について<br>
     カメラ映像を右クリックすると左右反転します。<br><br>
     ・画面共有時について<br>
     画面共有状態の場合、ドラッグでカメラ映像を動かすことができます。<br>
     Tキーを押すと、共有画面のトリミング設定を開きます。赤枠が出るので、マウスで辺をドラッグしてください。<br><br>
+    使用カメラ：<select id="cameraSelect" style="width: 200px"><option value="default">デフォルト</option></select><br>
+    使用マイク：<select id="micSelect" style="width: 200px"><option value="default">デフォルト</option></select><br>
+    <button id="startButton" type="button">スタート</button>
+  </div>
+  <div id="errorPermission" style="color: #FFFFFF; display: none">
+    ブラウザ側でマイクやカメラの使用が拒否されています。ブラウザの設定を修正し、ページを更新してください。
   </div>
   <div id="main">
     <video id="underBackground" style="position: absolute; top: 0px; left: 0px; z-index: 0"></video>
