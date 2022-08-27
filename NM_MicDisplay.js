@@ -658,6 +658,7 @@ function NM_MicDisplay_drawCapture() {
 }
 
 function NM_MicDisplay_main(){
+	//var startTime = performance.now();
 	NM_MicDislay_adjustCanvasSize(false);
 	if (finish_load_texture()) {
 		NM_MicDisplay_updateWave();
@@ -679,5 +680,7 @@ function NM_MicDisplay_main(){
 		gl.flush();
 		NM_MicDisplay_count++;
 	}
-	setTimeout(arguments.callee, 1000/60);
+	//var endTime = performance.now();
+    //console.log(endTime - startTime);
+	requestAnimationFrame(NM_MicDisplay_main);
 }

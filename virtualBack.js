@@ -2,13 +2,14 @@
 var mapTextureXToCanvas = new Array(virtualBackTextureSize);
 var mapTextureYToCanvas = new Array(virtualBackTextureSize);
 
-var bodyPixNet = null;
+var blasePoseNet = null;
 var videoComponent = null;
 var intermediateCanvas = null;
 var intermediateCanvasCtx = null;
 
 var mirrorVirtualBack = false;
 var processedSegmentResult = null;
+var segmentMaskImage = null;
 
 function calcMapTextureToCanvas() {
     for (var idx = 0; idx < virtualBackTextureSize; idx++) {
@@ -17,29 +18,34 @@ function calcMapTextureToCanvas() {
     }
 }
 
-function VirtualBack_createTextureData(i_processedSegmentResult, i_ctxIntermediateImage) {
+function VirtualBack_createTextureData(i_segmentMaskImage, i_ctxIntermediateImage) {
     var inputData = new Uint32Array(i_ctxIntermediateImage.data.buffer);
     var inputPixIdx = 0;
     var inputSegmentIdx = 0;
     var outputPixIdx = 0;
 
-    for (var y = 0; y < virtualBackTextureSize; y++) {
-        var yInputIdx = mapTextureYToCanvas[y] * virtualBackCanvasSize.width;
-        for (var x = 0; x < virtualBackTextureSize; x++) {
-            var currentX = x;
-            if (mirrorVirtualBack) {
-                currentX = (virtualBackTextureSize - 1) - x;
-            }
-            inputPixIdx = yInputIdx + mapTextureXToCanvas[currentX];
+    if (i_segmentMaskImage != null) {
+        for (var y = 0; y < virtualBackTextureSize; y++) {
+            var yInputIdx = mapTextureYToCanvas[y] * virtualBackCanvasSize.width;
+            for (var x = 0; x < virtualBackTextureSize; x++) {
+                var currentX = x;
+                if (mirrorVirtualBack) {
+                    currentX = (virtualBackTextureSize - 1) - x;
+                }
+                inputPixIdx = yInputIdx + mapTextureXToCanvas[currentX];
 
-            virtualBackTextureInfo.textureData32[outputPixIdx] = inputData[inputPixIdx];
-            if (i_processedSegmentResult.data[inputPixIdx] > 0) {
-                virtualBackTextureInfo.textureData32[outputPixIdx] |= 0xff000000;
+                var alpha = (i_segmentMaskImage.data[inputPixIdx * 4 + 3]|0);
+                virtualBackTextureInfo.textureData32[outputPixIdx] = ((alpha << 24) | (inputData[inputPixIdx] & 0x00ffffff));
+                outputPixIdx++;
             }
-            else {
-                virtualBackTextureInfo.textureData32[outputPixIdx] &= 0x00ffffff;
+        }
+    }
+    else {
+        for (var y = 0; y < virtualBackTextureSize; y++) {
+            for (var x = 0; x < virtualBackTextureSize; x++) {
+                virtualBackTextureInfo.textureData32[outputPixIdx] = 0x00;
+                outputPixIdx++;
             }
-            outputPixIdx++;
         }
     }
 }
@@ -60,12 +66,14 @@ async function VirtualBack_init(videoStream) {
     intermediateCanvas.height = virtualBackCanvasSize.height;
     intermediateCanvasCtx = intermediateCanvas.getContext("2d");
 
-    bodyPixNet = await bodyPix.load( {
-        architecture: "MobileNetV1",
-        outputStride: 16,
-        multiplier: 0.75,
-        quantBytes: 4
-    });
+    const detectorConfig = {
+        runtime: "mediapipe",
+        enableSegmentation: true,
+        modelType:"lite",
+        solutionPath: "https://cdn.jsdelivr.net/npm/@mediapipe/pose"
+    };
+    blazePoseNet = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, detectorConfig);
+
     videoComponent = document.getElementById("video");
     videoComponent.width = virtualBackCanvasSize.width;
     videoComponent.height = virtualBackCanvasSize.height;
@@ -79,15 +87,19 @@ async function VirtualBack_main() {
 
     intermediateCanvasCtx.drawImage(videoComponent, 0, 0, virtualBackCanvasSize.width, virtualBackCanvasSize.height);
 
-    var bodyPixPromise = bodyPixNet.segmentPerson(intermediateCanvas, {
-        flipHorizontal: false
-    });
+    var blazePosePromise = blazePoseNet.estimatePoses(intermediateCanvas);
 
     if (processedSegmentResult) {
-        VirtualBack_createTextureData(processedSegmentResult, ctxIntermediateImage);
+        VirtualBack_createTextureData(segmentMaskImage, ctxIntermediateImage);
         virtualBackTextureInfo.isChanged = true;
     }
-    processedSegmentResult = await bodyPixPromise;
+    processedSegmentResult = await blazePosePromise;
+    if (processedSegmentResult.length > 0) {
+        segmentMaskImage = await processedSegmentResult[0].segmentation.mask.toImageData();
+    }
+    else {
+        segmentMaskImage = null;
+    }
 
     //var endTime = performance.now();
     //console.log(endTime - startTime);

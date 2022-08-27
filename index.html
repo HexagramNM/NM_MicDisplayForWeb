@@ -4,10 +4,14 @@
   <meta charset="UTF-8">
   <link rel="icon" href="image/NM_MicDisplay_icon.ico">
   <title>NM_MicDisplay for Web</title>
-  <!-- Load TensorFlow.js -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.2"></script>
-  <!-- Load BodyPix -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/body-pix@2.0"></script>
+  <!-- Require the peer dependencies of pose-detection. -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+
+  <!-- You must explicitly require a TF.js backend if you're not using the TF.js union bundle. -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+
   <script type="text/javascript" src="globalVariables.js"></script>
   <script type="text/javascript" src="createWebGLObj.js"></script>
   <script type="text/javascript" src="virtualBack.js"></script>
@@ -39,30 +43,28 @@
         vec4 smpColor = texture2D(texture, vTextureCoord);
         float grayScale = smpColor.r * 0.299 + smpColor.g * 0.587 + smpColor.b * 0.114;
         float canvasWidth = 480.0;
+        float invCanvasWidth = 1.0 / 480.0;
         float canvasHeight = 360.0;
+        float invCanvasHeight = 1.0 / 360.0;
         float edgeSize = 40.0;
-        float widthEdge = edgeSize / canvasWidth;
-        float heightEdge = edgeSize / canvasHeight;
+        float invEdgeSize = 1.0 / 40.0;
+        float widthEdge = edgeSize * invCanvasWidth;
+        float heightEdge = edgeSize * invCanvasHeight;
+        float invWidthEdge = canvasWidth * invEdgeSize;
+        float invHeightEdge = canvasHeight * invEdgeSize;
         float maxAlpha = 220.0 / 255.0;
         float edgeAlpha = 1.0;
-        float outerAlpha = 0.0;
 
         smpColor.r = (grayScale * 0.45 + 0.05);
         smpColor.g = (grayScale * 0.6 + 0.2);
         smpColor.b = (grayScale * 0.6 + 0.4);
 
-        edgeAlpha = clamp(vTextureCoord.x, 0.0, widthEdge) / widthEdge;
-        edgeAlpha = min(clamp(1.0 - vTextureCoord.x, 0.0, widthEdge) / widthEdge, edgeAlpha);
-        edgeAlpha = min(clamp(vTextureCoord.y, 0.0, heightEdge) / heightEdge, edgeAlpha);
-        edgeAlpha = min(clamp(1.0 - vTextureCoord.y, 0.0, heightEdge) / heightEdge, edgeAlpha);
+        edgeAlpha = clamp(vTextureCoord.x, 0.0, widthEdge) * invWidthEdge;
+        edgeAlpha = min(clamp(1.0 - vTextureCoord.x, 0.0, widthEdge) * invWidthEdge, edgeAlpha);
+        edgeAlpha = min(clamp(vTextureCoord.y, 0.0, heightEdge) * invHeightEdge, edgeAlpha);
+        edgeAlpha = min(clamp(1.0 - vTextureCoord.y, 0.0, heightEdge) * invHeightEdge, edgeAlpha);
 
-        for (float y = -4.0; y <= 4.0; y += 1.0) {
-            for (float x = -4.0; x <= 4.0; x += 1.0) {
-                outerAlpha = max(outerAlpha,
-                    texture2D(texture, vTextureCoord + vec2(x / canvasWidth, y / canvasHeight)).a * clamp(6.0 - abs(x) - abs(y), 0.0, 6.0) / 6.0);
-            }
-        }
-        smpColor.a = maxAlpha * edgeAlpha * outerAlpha;
+        smpColor.a = smpColor.a * maxAlpha * edgeAlpha;
         gl_FragColor = vColor * smpColor;
       }
   </script>
