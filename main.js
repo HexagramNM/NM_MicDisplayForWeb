@@ -23,6 +23,48 @@ function VirtualBB_getSelectedDeviceId() {
     }
 }
 
+async function VirtualBB_prepareSharedWindowStream() {
+    var cameraSelectIndex = document.getElementById("cameraSelect").selectedIndex;
+    var sharedWindowSelectIndex = document.getElementById("sharedWindowSelect").selectedIndex;
+    var underBackgroundElem = document.getElementById("underBackground");
+
+    try {
+        if (sharedWindowSelectIndex <= 0) {
+            //画面共有なし
+            windowShareMode = false;
+        }
+        else if (sharedWindowSelectIndex == 1) {
+            //ウィンドウから画面共有
+            var screenStream = await navigator.mediaDevices.getDisplayMedia({
+                audio: true,
+                video: {
+                    cursor: "never"
+                }
+            });
+            underBackgroundElem.autoplay = true;
+            underBackgroundElem.srcObject = screenStream;
+            windowShareMode = true;
+        }
+        else {
+            var sharedWindowDeviceId = VirtualBB_cameraDeviceLists[sharedWindowSelectIndex - 2].deviceId;
+            var screenStream = await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: {
+                    deviceId: sharedWindowDeviceId ? {exact: sharedWindowDeviceId}: undefined,
+                    width: {ideal: 1920},
+                    height: {ideal: 1080}
+                }
+            });
+            underBackgroundElem.autoplay = true;
+            underBackgroundElem.srcObject = screenStream;
+            windowShareMode = true;
+        }
+    }
+    catch(err) {
+        windowShareMode = false;
+    }
+}
+
 async function VirtualBB_startProcess() {
     document.oncontextmenu = VirtualBB_toggleMirror;
     document.getElementById("easyInst").style.display = "none";
@@ -56,23 +98,7 @@ async function VirtualBB_startProcess() {
     }
 
     await VirtualBack_init(videoStream);
-
-    //共有画面選択
-    try {
-        screenStream = await navigator.mediaDevices.getDisplayMedia({
-            audio: true,
-            video: {
-                cursor: "never"
-            }
-        });
-        document.getElementById("underBackground").autoplay = true;
-        document.getElementById("underBackground").srcObject = screenStream;
-
-        windowShareMode = true;
-    }
-    catch (err) {
-        windowShareMode = false;
-    }
+    await VirtualBB_prepareSharedWindowStream();
     await NM_MicDisplay_init(audioStream);
     SharedWindow_init();
     process_dynamic_texture();
@@ -97,6 +123,7 @@ async function VirtualBB_createDeviceSelector() {
         optionElem.text = VirtualBB_cameraDeviceLists[idx].name;
         optionElem.value = VirtualBB_cameraDeviceLists[idx].name;
         document.getElementById("cameraSelect").appendChild(optionElem);
+        document.getElementById("sharedWindowSelect").appendChild(optionElem.cloneNode(true));
     }
 
     VirtualBB_micDeviceLists = (await navigator.mediaDevices.enumerateDevices())

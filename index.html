@@ -94,7 +94,8 @@
     <h2>使用方法</h2>
     1. マイクやカメラについて使用許可の確認画面が出てきたら、許可してください。<br>
     2. 使用するマイク、カメラを選択し、スタートボタンを押してください。<br>
-    3. 起動後画面共有のオプションも開きます。共有する画面を選択するとその右下にカメラ映像が入ります。<br>
+    3. 画面共有をする場合、共有する画面の右下にカメラ映像が入ります。<br>
+    「ウィンドウをキャプチャ」を選択した場合は開始前に、共有するウィンドウを選択するオプションが開きます。<br>
     選択しない場合は画面いっぱいにカメラ映像が映ります。<br><br>
     ・カメラ映像について<br>
     カメラ映像を右クリックすると左右反転します。<br><br>
@@ -103,6 +104,10 @@
     Tキーを押すと、共有画面のトリミング設定を開きます。赤枠が出るので、マウスで辺をドラッグしてください。<br><br>
     使用カメラ：<select id="cameraSelect" style="width: 200px"><option value="default">デフォルト</option></select><br>
     使用マイク：<select id="micSelect" style="width: 200px"><option value="default">デフォルト</option></select><br>
+    画面共有：<select id="sharedWindowSelect" style="width: 200px">
+      <option value="none">しない</option>
+      <option value="windowCapture">ウィンドウをキャプチャ</option>
+    </select><br>
     <button id="startButton" type="button" disabled>スタート</button>
   </div>
   <div id="errorPermission" style="color: #FFFFFF; display: none">
