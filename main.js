@@ -27,6 +27,7 @@ async function VirtualBB_prepareSharedWindowStream() {
     var cameraSelectIndex = document.getElementById("cameraSelect").selectedIndex;
     var sharedWindowSelectIndex = document.getElementById("sharedWindowSelect").selectedIndex;
     var underBackgroundElem = document.getElementById("underBackground");
+    var screenStream = null;
 
     try {
         if (sharedWindowSelectIndex <= 0) {
@@ -35,26 +36,26 @@ async function VirtualBB_prepareSharedWindowStream() {
         }
         else if (sharedWindowSelectIndex == 1) {
             //ウィンドウから画面共有
-            var screenStream = await navigator.mediaDevices.getDisplayMedia({
-                audio: true,
+            screenStream = await navigator.mediaDevices.getDisplayMedia({
+                audio: false,
                 video: {
                     cursor: "never"
                 }
             });
-            underBackgroundElem.autoplay = true;
-            underBackgroundElem.srcObject = screenStream;
-            windowShareMode = true;
         }
         else {
             var sharedWindowDeviceId = VirtualBB_cameraDeviceLists[sharedWindowSelectIndex - 2].deviceId;
-            var screenStream = await navigator.mediaDevices.getUserMedia({
-                audio: true,
+            screenStream = await navigator.mediaDevices.getUserMedia({
+                audio: false,
                 video: {
                     deviceId: sharedWindowDeviceId ? {exact: sharedWindowDeviceId}: undefined,
                     width: {ideal: 1920},
                     height: {ideal: 1080}
                 }
             });
+        }
+
+        if (screenStream != null) {
             underBackgroundElem.autoplay = true;
             underBackgroundElem.srcObject = screenStream;
             windowShareMode = true;
