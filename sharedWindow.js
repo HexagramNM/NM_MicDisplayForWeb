@@ -98,6 +98,9 @@ function SharedWindow_keyUpEvent(event) {
 			videoPercentRangeInWindowShareMode[1][1] = 100.0;
 		}
 	}
+	else if (event.key == "b") {
+		windowShareBackEnable = !windowShareBackEnable;
+	}
 }
 
 function SharedWindow_mouseDownEvent(event) {

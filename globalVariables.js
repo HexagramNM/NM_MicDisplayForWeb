@@ -17,4 +17,5 @@ virtualBackTextureInfo.textureData8 = new Uint8Array(virtualBackTextureBinary);
 var gl;
 var texture_max;
 var windowShareMode = false;
+var windowShareBackEnable = false;
 var trimmingMode = false;

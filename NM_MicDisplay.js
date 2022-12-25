@@ -666,7 +666,12 @@ function NM_MicDisplay_main(){
 		NM_MicDisplay_updateCircleAlpha();
 		NM_MicDisplay_updateDftLevel();
 
-		gl.clearColor(0.0, 0.0, 0.0, 0.0);
+		if (windowShareBackEnable) {
+			gl.clearColor(0.0, 0.0, 0.0, 0.2);
+		}
+		else {
+			gl.clearColor(0.0, 0.0, 0.0, 0.0);
+		}
 		gl.clearDepth(1.0);
 		gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 		gl.useProgram(normalShaderInfo.program);
