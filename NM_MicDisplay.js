@@ -403,6 +403,7 @@ async function NM_MicDisplay_init(micStream) {
 	    shaderInfo.attStride[2]=2;
 	    shaderInfo.uniLocation[0] = gl.getUniformLocation(shaderInfo.program, 'mvpMatrix');
 	    shaderInfo.uniLocation[1] = gl.getUniformLocation(shaderInfo.program, 'texture');
+		shaderInfo.uniLocation[2] = gl.getUniformLocation(shaderInfo.program, 'time');
 	}
 }
 
@@ -654,6 +655,7 @@ function NM_MicDisplay_drawCapture() {
 	m.multiply(vpMatrix, mMatrix, mvpMatrix);
 	gl.uniformMatrix4fv(virtualBackShaderInfo.uniLocation[0], false, mvpMatrix);
 	gl.uniform1i(virtualBackShaderInfo.uniLocation[1], 3);
+	gl.uniform1f(virtualBackShaderInfo.uniLocation[2], NM_MicDisplay_count / 50.0);
 	gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
 }
 
