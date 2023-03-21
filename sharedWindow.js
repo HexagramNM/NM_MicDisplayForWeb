@@ -3,6 +3,64 @@
 var videoPercentRangeInWindowShareMode = [[0.0, 100.0], [0.0, 100.0]];
 var SharedWindow_previousMousePos = [null, null];
 
+function ShareWindow_drawUnderBackgroundCanvas() {
+	var underBackgroundVideo = document.getElementById("underBackground");
+	underBackgroundVideo.videoWidth = underBackgroundVideo.videoWidth;
+	underBackgroundVideo.videoHeight = underBackgroundVideo.videoHeight;
+	virtualShareWindowCanvasSize.width = underBackgroundVideo.videoWidth;
+	virtualShareWindowCanvasSize.height = underBackgroundVideo.videoHeight;
+
+	if (virtualShareWindowCanvasSize.width <= 0 || virtualShareWindowCanvasSize.height == 0) {
+		return;
+	}
+
+	var underBackgroundCanvas = document.getElementById("underBackgroundCanvas");
+	underBackgroundCanvas.width = virtualShareWindowCanvasSize.width;
+	console.log(virtualShareWindowCanvasSize.width);
+	underBackgroundCanvas.height = virtualShareWindowCanvasSize.height;
+	underBackgroundCanvasCtx = underBackgroundCanvas.getContext("2d");
+	underBackgroundCanvasCtx.drawImage(underBackgroundVideo, 0, 0,
+		underBackgroundCanvas.width, underBackgroundCanvas.height);
+}
+
+function SharedWindow_calcMapTextureToCanvas() {
+	if (virtualShareWindowCanvasSize.width <= 0 || virtualShareWindowCanvasSize.height == 0) {
+		return;
+	}
+
+	var underBackgroundWidthOffset = virtualShareWindowCanvasSize.width * videoPercentRangeInWindowShareMode[0][0] / 100.0;
+	var underBackgroundWidthRange = virtualShareWindowCanvasSize.width * (videoPercentRangeInWindowShareMode[0][1] - videoPercentRangeInWindowShareMode[0][0]) / 100.0;
+	var underBackgroundHeightOffset = virtualShareWindowCanvasSize.height * videoPercentRangeInWindowShareMode[1][0] / 100.0;
+	var underBackgroundHeightRange = virtualShareWindowCanvasSize.height * (videoPercentRangeInWindowShareMode[1][1] - videoPercentRangeInWindowShareMode[1][0]) / 100.0;
+
+    for (var idx = 0; idx < virtualShareWindowTextureSize; idx++) {
+        virtualShareWindowTextureInfo.mapTextureXToCanvas[idx] = parseInt(idx * underBackgroundWidthRange / virtualShareWindowTextureSize + underBackgroundWidthOffset + 0.5);
+        virtualShareWindowTextureInfo.mapTextureYToCanvas[idx] = parseInt(idx * underBackgroundHeightRange / virtualShareWindowTextureSize + underBackgroundHeightOffset + 0.5);
+    }
+}
+
+function ShareWindow_createTextureData() {
+	if (virtualShareWindowCanvasSize.width <= 0 || virtualShareWindowCanvasSize.height == 0) {
+		return;
+	}
+
+	var underBackgroundVideo = document.getElementById("underBackgroundCanvas");
+	var underBackgroundCtx = underBackgroundVideo.getContext("2d");
+	var underBackgroundCtxImage = underBackgroundCtx.getImageData(0, 0, virtualShareWindowCanvasSize.width, virtualShareWindowCanvasSize.height);
+    var inputData = new Uint32Array(underBackgroundCtxImage.data.buffer);
+    var inputPixIdx = 0;
+    var outputPixIdx = 0;
+
+	for (var y = 0; y < virtualShareWindowTextureSize; y++) {
+		var yInputIdx = virtualShareWindowTextureInfo.mapTextureYToCanvas[y] * virtualShareWindowCanvasSize.width;
+		for (var x = 0; x < virtualShareWindowTextureSize; x++) {
+			inputPixIdx = yInputIdx + virtualShareWindowTextureInfo.mapTextureXToCanvas[x];
+			virtualShareWindowTextureInfo.textureData32[outputPixIdx] = ((0xff << 24) | (inputData[inputPixIdx] & 0x00ffffff));
+			outputPixIdx++;
+		}
+	}
+}
+
 function SharedWindow_showTrimmingMode() {
 	var trimmingBox = document.getElementById("trimmingBox");
 	var underBackgroundVideo = document.getElementById("underBackground");
@@ -40,6 +98,7 @@ function SharedWindow_showTrimmingMode() {
 	trimmingBox.style.display = "";
 	underBackgroundVideo.style.margin = "0px 0px";
 	underBackgroundVideo.style.cssText += "clip-path: none";
+	underBackgroundVideo.style.display = "";
 }
 
 function SharedWindow_showTrimmedWindow() {
@@ -73,6 +132,7 @@ function SharedWindow_showTrimmedWindow() {
 	underBackgroundVideo.height = videoElementSize[1];
 	underBackgroundVideo.style.margin = videoElementMargin[1].toString() + "px "
 		+ videoElementMargin[0].toString() + "px";
+	underBackgroundVideo.style.display = "";
 
 	var leftPixel = videoElementSize[0] * videoPercentRangeInWindowShareMode[0][0] / 100.0;
 	var rightPixel = videoElementSize[0] * videoPercentRangeInWindowShareMode[0][1] / 100.0;
@@ -86,9 +146,11 @@ function SharedWindow_showTrimmedWindow() {
 
 function SharedWindow_keyUpEvent(event) {
 	if (event.key == "t") {
-		trimmingMode = !trimmingMode;
-		SharedWindow_previousMousePos[0] = null;
-		SharedWindow_previousMousePos[1] = null;
+		if (windowShareMode) {
+			trimmingMode = !trimmingMode;
+			SharedWindow_previousMousePos[0] = null;
+			SharedWindow_previousMousePos[1] = null;
+		}
 	}
 	else if (event.key == "r") {
 		if (trimmingMode) {
@@ -99,7 +161,15 @@ function SharedWindow_keyUpEvent(event) {
 		}
 	}
 	else if (event.key == "b") {
-		windowShareBackEnable = !windowShareBackEnable;
+		if (windowShareMode) {
+			windowShareBackEnable = !windowShareBackEnable;
+		}
+	}
+	else if (event.key == "s") {
+		trimmingMode = false;
+		SharedWindow_previousMousePos[0] = null;
+		SharedWindow_previousMousePos[1] = null;
+		windowShareMode = !windowShareMode;
 	}
 }
 
@@ -164,7 +234,7 @@ function SharedWindow_mouseUpEvent(event) {
 }
 
 function SharedWindow_init() {
-	if (windowShareMode) {
+	if (hasShareWindow) {
 		document.addEventListener("keyup", SharedWindow_keyUpEvent);
 		document.addEventListener("mousedown", SharedWindow_mouseDownEvent);
 		document.addEventListener("mousemove", SharedWindow_mouseMoveEvent);
@@ -174,6 +244,10 @@ function SharedWindow_init() {
 }
 
 function SharedWindow_main() {
+	if (!hasShareWindow) {
+		return;
+	}
+
 	if (windowShareMode) {
         if (trimmingMode) {
     		SharedWindow_showTrimmingMode();
@@ -182,5 +256,13 @@ function SharedWindow_main() {
             SharedWindow_showTrimmedWindow();
     	}
 	}
+	else {
+		document.getElementById("trimmingBox").style.display = "none";
+		document.getElementById("underBackground").style.display = "none";
+	}
+	ShareWindow_drawUnderBackgroundCanvas()
+	SharedWindow_calcMapTextureToCanvas()
+	ShareWindow_createTextureData()
+	virtualShareWindowTextureInfo.isChanged = true;
     setTimeout(arguments.callee, 1000/60);
 }

@@ -32,6 +32,7 @@ async function VirtualBB_prepareSharedWindowStream() {
     try {
         if (sharedWindowSelectIndex <= 0) {
             //画面共有なし
+            hasShareWindow = false;
             windowShareMode = false;
         }
         else if (sharedWindowSelectIndex == 1) {
@@ -58,12 +59,20 @@ async function VirtualBB_prepareSharedWindowStream() {
         if (screenStream != null) {
             underBackgroundElem.autoplay = true;
             underBackgroundElem.srcObject = screenStream;
+            hasShareWindow = true;
             windowShareMode = true;
         }
     }
     catch(err) {
+        hasShareWindow = false;
         windowShareMode = false;
     }
+}
+
+function VirtualBB_toggleMirror() {
+    mirrorVirtualBack = !mirrorVirtualBack;
+    //右クリックによるメニューを抑制
+    return false;
 }
 
 async function VirtualBB_startProcess() {

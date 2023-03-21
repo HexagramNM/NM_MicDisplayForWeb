@@ -1,7 +1,4 @@
 //設定変数
-var mapTextureXToCanvas = new Array(virtualBackTextureSize);
-var mapTextureYToCanvas = new Array(virtualBackTextureSize);
-
 var blasePoseNet = null;
 var videoComponent = null;
 var intermediateCanvas = null;
@@ -11,10 +8,10 @@ var mirrorVirtualBack = false;
 var processedSegmentResult = null;
 var segmentMaskImage = null;
 
-function calcMapTextureToCanvas() {
+function VirtualBack_calcMapTextureToCanvas() {
     for (var idx = 0; idx < virtualBackTextureSize; idx++) {
-        mapTextureXToCanvas[idx] = parseInt(idx * virtualBackCanvasSize.width / virtualBackTextureSize + 0.5);
-        mapTextureYToCanvas[idx] = parseInt(idx * virtualBackCanvasSize.height / virtualBackTextureSize + 0.5);
+        virtualBackTextureInfo.mapTextureXToCanvas[idx] = parseInt(idx * virtualBackCanvasSize.width / virtualBackTextureSize + 0.5);
+        virtualBackTextureInfo.mapTextureYToCanvas[idx] = parseInt(idx * virtualBackCanvasSize.height / virtualBackTextureSize + 0.5);
     }
 }
 
@@ -26,13 +23,13 @@ function VirtualBack_createTextureData(i_segmentMaskImage, i_ctxIntermediateImag
 
     if (i_segmentMaskImage != null) {
         for (var y = 0; y < virtualBackTextureSize; y++) {
-            var yInputIdx = mapTextureYToCanvas[y] * virtualBackCanvasSize.width;
+            var yInputIdx = virtualBackTextureInfo.mapTextureYToCanvas[y] * virtualBackCanvasSize.width;
             for (var x = 0; x < virtualBackTextureSize; x++) {
                 var currentX = x;
                 if (mirrorVirtualBack) {
                     currentX = (virtualBackTextureSize - 1) - x;
                 }
-                inputPixIdx = yInputIdx + mapTextureXToCanvas[currentX];
+                inputPixIdx = yInputIdx + virtualBackTextureInfo.mapTextureXToCanvas[currentX];
 
                 var alpha = (i_segmentMaskImage.data[inputPixIdx * 4 + 3]|0);
                 virtualBackTextureInfo.textureData32[outputPixIdx] = ((alpha << 24) | (inputData[inputPixIdx] & 0x00ffffff));
@@ -50,15 +47,9 @@ function VirtualBack_createTextureData(i_segmentMaskImage, i_ctxIntermediateImag
     }
 }
 
-function VirtualBB_toggleMirror() {
-    mirrorVirtualBack = !mirrorVirtualBack;
-    //右クリックによるメニューを抑制
-    return false;
-}
-
 async function VirtualBack_init(videoStream) {
     mirrorVirtualBack = false;
-    calcMapTextureToCanvas();
+    VirtualBack_calcMapTextureToCanvas();
     virtualBackTextureInfo.isChanged = true;
 
     intermediateCanvas = document.getElementById("intermediate");

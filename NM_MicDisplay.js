@@ -34,6 +34,13 @@ var virtualBackShaderInfo = {
 	uniLocation: new Array()
 }
 
+var virtualShareWindowShaderInfo = {
+	program: null,
+	attLocation: new Array(),
+	attStride: new Array(),
+	uniLocation: new Array()
+}
+
 var index = [
 	0, 2, 1,
 	1, 2, 3
@@ -75,6 +82,7 @@ var waveLevelRateThreshold = 1.2;
 var waveLineWidthHalf = 0.08;
 var waveOffsetHeight = 4.0;
 var captureWidth = 7.0;
+var virtualShareWindowHeight = 3.0;
 
 async function NM_MicDisplay_micInit(micStream) {
 	const audioCtx = new AudioContext();
@@ -292,7 +300,7 @@ function NM_MicDisplay_mouseUpEvent(event) {
 }
 
 function NM_MicDisplay_mouseMoveEvent(event) {
-	if (NM_MicDisplay_previousMousePos[0] != null && NM_MicDisplay_previousMousePos[1] != null) {
+	if (NM_MicDisplay_previousMousePos[0] != null && NM_MicDisplay_previousMousePos[1] != null && windowShareMode) {
 		canvasPositionInWindowShareMode[0] += event.pageX - NM_MicDisplay_previousMousePos[0];
 		canvasPositionInWindowShareMode[1] += event.pageY - NM_MicDisplay_previousMousePos[1];
 		NM_MicDisplay_previousMousePos[0] = event.pageX;
@@ -365,6 +373,7 @@ async function NM_MicDisplay_init(micStream) {
 	var v_shader=create_shader('vshader');
 	var f_shader=create_shader('fshader');
 	var backMaskFragmentShader=create_shader('backMaskShader');
+	var virtualShareWindowFragmentShader=create_shader('virtualShareWindowShader');
 
 	//normalShaderのプログラム設定
 	normalShaderInfo.program = create_program(v_shader, f_shader);
@@ -375,6 +384,9 @@ async function NM_MicDisplay_init(micStream) {
 	//virtualBackShaderのプログラム設定
 	virtualBackShaderInfo.program = create_program(v_shader, backMaskFragmentShader);
 	setupCommonShaderProgram(virtualBackShaderInfo);
+
+	virtualShareWindowShaderInfo.program = create_program(v_shader, virtualShareWindowFragmentShader);
+	setupCommonShaderProgram(virtualShareWindowShaderInfo)
 
 	NM_MicDisplay_createPlaneBuffer();
 	NM_MicDisplay_createDftBarBuffer()
@@ -389,6 +401,7 @@ async function NM_MicDisplay_init(micStream) {
 	create_texture('image/redCircleLight.png?'+new Date().getTime(), 1);
 	create_texture('image/redCircleWave.png?'+new Date().getTime(), 2);
 	create_dynamic_texture(virtualBackTextureInfo, 3);
+	create_dynamic_texture(virtualShareWindowTextureInfo, 4);
 
 	m.lookAt([0.0, 9.0, -18.0], [0,2.0,0], [0, 1, 0], vMatrix);
 	m.perspective(60.0, c.width/c.height, 1.0, 100, pMatrix);
@@ -647,7 +660,11 @@ function NM_MicDisplay_drawCapture() {
 	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_ibo);
 
 	//virtualBackCanvasSizeはglobalVariables.js内の変数
-	var aspect = virtualBackCanvasSize.height / virtualBackCanvasSize.width;
+	var aspect = 0.0;
+	if (virtualBackCanvasSize.width > 0.0) {
+		aspect = virtualBackCanvasSize.height / virtualBackCanvasSize.width;
+	}
+
 	m.identity(mMatrix);
 	m.translate(mMatrix, [0.0, 5.5, -6.0], mMatrix);
 	m.rotate(mMatrix, Math.PI, [0.0, 1.0, 0.0], mMatrix);
@@ -656,6 +673,37 @@ function NM_MicDisplay_drawCapture() {
 	gl.uniformMatrix4fv(virtualBackShaderInfo.uniLocation[0], false, mvpMatrix);
 	gl.uniform1i(virtualBackShaderInfo.uniLocation[1], 3);
 	gl.uniform1f(virtualBackShaderInfo.uniLocation[2], NM_MicDisplay_count / 50.0);
+	gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
+}
+
+function NM_MicDisplay_drawVirtualShareWindow() {
+	if (!hasShareWindow) {
+		return;
+	}
+	gl.bindBuffer(gl.ARRAY_BUFFER, position_vbo);
+	gl.enableVertexAttribArray(virtualShareWindowShaderInfo.attLocation[0]);
+	gl.vertexAttribPointer(virtualShareWindowShaderInfo.attLocation[0], virtualShareWindowShaderInfo.attStride[0], gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ARRAY_BUFFER, color_vbo);
+	gl.enableVertexAttribArray(virtualShareWindowShaderInfo.attLocation[1]);
+	gl.vertexAttribPointer(virtualShareWindowShaderInfo.attLocation[1], virtualShareWindowShaderInfo.attStride[1], gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ARRAY_BUFFER, texture_vbo);
+	gl.enableVertexAttribArray(virtualShareWindowShaderInfo.attLocation[2]);
+	gl.vertexAttribPointer(virtualShareWindowShaderInfo.attLocation[2], virtualShareWindowShaderInfo.attStride[2], gl.FLOAT, false, 0, 0);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_ibo);
+
+	var aspect = 0.0;
+	if (virtualShareWindowCanvasSize.height > 0.0) {
+		aspect = virtualShareWindowCanvasSize.width / virtualShareWindowCanvasSize.height;
+	}
+	
+	m.identity(mMatrix);
+	m.translate(mMatrix, [0.0, 3.5, -10.5], mMatrix);
+	m.rotate(mMatrix, -Math.PI * 30.0 / 180.0, [1.0, 0.0, 0.0], mMatrix);
+	m.scale(mMatrix, [virtualShareWindowHeight * aspect, virtualShareWindowHeight, 1.0], mMatrix);
+	m.multiply(vpMatrix, mMatrix, mvpMatrix);
+	gl.uniformMatrix4fv(virtualShareWindowShaderInfo.uniLocation[0], false, mvpMatrix);
+	gl.uniform1i(virtualShareWindowShaderInfo.uniLocation[1], 4);
+	gl.uniform1f(virtualShareWindowShaderInfo.uniLocation[2], NM_MicDisplay_count / 50.0);
 	gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
 }
 
@@ -684,6 +732,8 @@ function NM_MicDisplay_main(){
 		NM_MicDisplay_drawWave();
 		gl.useProgram(virtualBackShaderInfo.program);
 		NM_MicDisplay_drawCapture();
+		gl.useProgram(virtualShareWindowShaderInfo.program);
+		NM_MicDisplay_drawVirtualShareWindow();
 		gl.flush();
 		NM_MicDisplay_count++;
 	}
