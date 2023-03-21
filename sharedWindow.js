@@ -167,6 +167,7 @@ function SharedWindow_keyUpEvent(event) {
 	}
 	else if (event.key == "s") {
 		trimmingMode = false;
+		windowShareBackEnable = false;
 		SharedWindow_previousMousePos[0] = null;
 		SharedWindow_previousMousePos[1] = null;
 		windowShareMode = !windowShareMode;

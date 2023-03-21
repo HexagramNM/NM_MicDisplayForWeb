@@ -67,6 +67,13 @@ var soundWaveColor_vbo;
 var soundWaveDummyTexture_vbo;
 var soundWaveIndex_ibo;
 
+var virtualShareWindowPlaneNum = 21;
+var virtualShareWindowPosition_data;
+var virtualShareWindowPosition_vbo;
+var virtualShareWindowColor_vbo;
+var virtualShareWindowTexture_vbo;
+var virtualShareWindowIndex_ibo;
+
 var NM_MicDisplay_canvasSize = {width: 1280, height: 720};
 var canvasScaleInWindowShareMode = 0.4;
 var NM_MicDisplay_previousMousePos = [null, null];
@@ -82,7 +89,12 @@ var waveLevelRateThreshold = 1.2;
 var waveLineWidthHalf = 0.08;
 var waveOffsetHeight = 4.0;
 var captureWidth = 7.0;
-var virtualShareWindowHeight = 3.0;
+var virtualShareWindowHeight = 5.0;
+var virtualShareWindowRadius = 12.0;
+var virtualShareWindowYPos = 4.0;
+var virtualShareWindowTiltAngle = Math.PI * 80.0 / 180.0;
+var virtualShareWindowTiltSin = Math.sin(virtualShareWindowTiltAngle);
+var virtualShareWindowTiltCos = Math.cos(virtualShareWindowTiltAngle);
 
 async function NM_MicDisplay_micInit(micStream) {
 	const audioCtx = new AudioContext();
@@ -242,7 +254,7 @@ function NM_MicDisplay_createSoundWaveBuffer() {
 	soundWavePosition_data = new Float32Array(soundDisplayLength * 2 * 3);
 	var soundWaveColor_data = new Float32Array(soundDisplayLength * 2 * 4);
 	var soundWaveDummyTexture_data = new Float32Array(soundDisplayLength * 2 * 2);
-	var soundWaveIndex_data = new Float32Array(soundDisplayLength * 6);
+	var soundWaveIndex_data = new Int32Array(soundDisplayLength * 6);
 	var currentAngle = Math.PI / 2.0;
 	var stepAngle = 2.0 * Math.PI / soundDisplayLength;
 	for (var idx = 0; idx < soundDisplayLength; idx++) {
@@ -287,6 +299,39 @@ function NM_MicDisplay_createSoundWaveBuffer() {
 	soundWaveColor_vbo = create_vbo(soundWaveColor_data);
 	soundWaveDummyTexture_vbo = create_vbo(soundWaveDummyTexture_data);
 	soundWaveIndex_vbo = create_ibo(soundWaveIndex_data);
+}
+
+function NM_MicDisplay_createVirtualShareWindowBuffeer() {
+	virtualShareWindowPosition_data = new Float32Array((virtualShareWindowPlaneNum + 1) * 2 * 3);
+	var virtualShareWindowColor_data = new Float32Array((virtualShareWindowPlaneNum + 1) * 2 * 4);
+	var virtualShareWindowTexture_data = new Float32Array((virtualShareWindowPlaneNum + 1) * 2 * 2);
+	var virtualShareWindowIndex_data = new Int32Array(virtualShareWindowPlaneNum * 6);
+
+	NM_MicDisplay_updateVirtualShareWindow();
+	for (var idx = 0; idx < virtualShareWindowPlaneNum + 1; idx++) {
+		for (var cIdx = 0; cIdx < 8; cIdx++) {
+			virtualShareWindowColor_data[idx * 8 + cIdx] = 1.0;
+		}
+
+		virtualShareWindowTexture_data[idx * 4] = idx / virtualShareWindowPlaneNum;
+		virtualShareWindowTexture_data[idx * 4 + 1] = 0.0;
+		virtualShareWindowTexture_data[idx * 4 + 2] = idx / virtualShareWindowPlaneNum;
+		virtualShareWindowTexture_data[idx * 4 + 3] = 1.0;
+	}
+
+	for (var idx = 0; idx < virtualShareWindowPlaneNum; idx++) {
+		virtualShareWindowIndex_data[idx * 6] = idx * 2;
+		virtualShareWindowIndex_data[idx * 6 + 1] = idx * 2 + 1;
+		virtualShareWindowIndex_data[idx * 6 + 2] = idx * 2 + 2;
+		virtualShareWindowIndex_data[idx * 6 + 3] = idx * 2 + 2;
+		virtualShareWindowIndex_data[idx * 6 + 4] = idx * 2 + 1;
+		virtualShareWindowIndex_data[idx * 6 + 5] = idx * 2 + 3;
+	}
+
+	virtualShareWindowPosition_vbo = create_vbo(virtualShareWindowPosition_data, true);
+	virtualShareWindowColor_vbo = create_vbo(virtualShareWindowColor_data);
+	virtualShareWindowTexture_vbo = create_vbo(virtualShareWindowTexture_data);
+	virtualShareWindowIndex_ibo = create_ibo(virtualShareWindowIndex_data);
 }
 
 function NM_MicDisplay_mouseDownEvent(event) {
@@ -391,6 +436,7 @@ async function NM_MicDisplay_init(micStream) {
 	NM_MicDisplay_createPlaneBuffer();
 	NM_MicDisplay_createDftBarBuffer()
 	NM_MicDisplay_createSoundWaveBuffer();
+	NM_MicDisplay_createVirtualShareWindowBuffeer();
 
 	gl.enable(gl.BLEND);
 	gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE);
@@ -497,6 +543,28 @@ function NM_MicDisplay_updateDftLevel() {
 			}
 			dftBarCount[dftElemIdx] = 0;
 		}
+	}
+}
+
+function NM_MicDisplay_updateVirtualShareWindow() {
+	var virtualShareWindowWidth = 0.0;
+	if (virtualShareWindowCanvasSize.height > 0) {
+		virtualShareWindowWidth = virtualShareWindowHeight * virtualShareWindowCanvasSize.width / virtualShareWindowCanvasSize.height;
+	}
+
+	var upperRadius = virtualShareWindowRadius + virtualShareWindowHeight * 0.5 * virtualShareWindowTiltCos;
+	var lowerRadius = virtualShareWindowRadius - virtualShareWindowHeight * 0.5 * virtualShareWindowTiltCos;
+	var upperCircleLength = 2.0 * Math.PI * upperRadius;
+	var currentAngle = Math.PI + Math.PI * virtualShareWindowWidth / upperCircleLength;
+	var stepAngle = 2.0 * Math.PI * virtualShareWindowWidth / (upperCircleLength * virtualShareWindowPlaneNum);
+	for (var idx = 0; idx < virtualShareWindowPlaneNum + 1; idx++) {
+		virtualShareWindowPosition_data[idx * 6] = upperRadius * Math.sin(currentAngle);
+		virtualShareWindowPosition_data[idx * 6 + 1] = virtualShareWindowYPos + virtualShareWindowHeight * 0.5 * virtualShareWindowTiltSin;
+		virtualShareWindowPosition_data[idx * 6 + 2] = upperRadius * Math.cos(currentAngle);
+		virtualShareWindowPosition_data[idx * 6 + 3] = lowerRadius * Math.sin(currentAngle);
+		virtualShareWindowPosition_data[idx * 6 + 4] = virtualShareWindowYPos - virtualShareWindowHeight * 0.5 * virtualShareWindowTiltSin;
+		virtualShareWindowPosition_data[idx * 6 + 5] = lowerRadius * Math.cos(currentAngle);
+		currentAngle -= stepAngle;
 	}
 }
 
@@ -680,31 +748,24 @@ function NM_MicDisplay_drawVirtualShareWindow() {
 	if (!hasShareWindow) {
 		return;
 	}
-	gl.bindBuffer(gl.ARRAY_BUFFER, position_vbo);
+	gl.bindBuffer(gl.ARRAY_BUFFER, virtualShareWindowPosition_vbo);
+	gl.bufferSubData(gl.ARRAY_BUFFER, 0, virtualShareWindowPosition_data);
 	gl.enableVertexAttribArray(virtualShareWindowShaderInfo.attLocation[0]);
 	gl.vertexAttribPointer(virtualShareWindowShaderInfo.attLocation[0], virtualShareWindowShaderInfo.attStride[0], gl.FLOAT, false, 0, 0);
-	gl.bindBuffer(gl.ARRAY_BUFFER, color_vbo);
+	gl.bindBuffer(gl.ARRAY_BUFFER, virtualShareWindowColor_vbo);
 	gl.enableVertexAttribArray(virtualShareWindowShaderInfo.attLocation[1]);
 	gl.vertexAttribPointer(virtualShareWindowShaderInfo.attLocation[1], virtualShareWindowShaderInfo.attStride[1], gl.FLOAT, false, 0, 0);
-	gl.bindBuffer(gl.ARRAY_BUFFER, texture_vbo);
+	gl.bindBuffer(gl.ARRAY_BUFFER, virtualShareWindowTexture_vbo);
 	gl.enableVertexAttribArray(virtualShareWindowShaderInfo.attLocation[2]);
 	gl.vertexAttribPointer(virtualShareWindowShaderInfo.attLocation[2], virtualShareWindowShaderInfo.attStride[2], gl.FLOAT, false, 0, 0);
-	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, index_ibo);
+	gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, virtualShareWindowIndex_ibo);
 
-	var aspect = 0.0;
-	if (virtualShareWindowCanvasSize.height > 0.0) {
-		aspect = virtualShareWindowCanvasSize.width / virtualShareWindowCanvasSize.height;
-	}
-	
 	m.identity(mMatrix);
-	m.translate(mMatrix, [0.0, 3.5, -10.5], mMatrix);
-	m.rotate(mMatrix, -Math.PI * 30.0 / 180.0, [1.0, 0.0, 0.0], mMatrix);
-	m.scale(mMatrix, [virtualShareWindowHeight * aspect, virtualShareWindowHeight, 1.0], mMatrix);
 	m.multiply(vpMatrix, mMatrix, mvpMatrix);
 	gl.uniformMatrix4fv(virtualShareWindowShaderInfo.uniLocation[0], false, mvpMatrix);
 	gl.uniform1i(virtualShareWindowShaderInfo.uniLocation[1], 4);
 	gl.uniform1f(virtualShareWindowShaderInfo.uniLocation[2], NM_MicDisplay_count / 50.0);
-	gl.drawElements(gl.TRIANGLES, index.length, gl.UNSIGNED_SHORT, 0);
+	gl.drawElements(gl.TRIANGLES, virtualShareWindowPlaneNum * 6, gl.UNSIGNED_SHORT, 0);
 }
 
 function NM_MicDisplay_main(){
@@ -715,6 +776,7 @@ function NM_MicDisplay_main(){
 		NM_MicDisplay_updateEmitWave();
 		NM_MicDisplay_updateCircleAlpha();
 		NM_MicDisplay_updateDftLevel();
+		NM_MicDisplay_updateVirtualShareWindow();
 
 		if (windowShareBackEnable) {
 			gl.clearColor(0.0, 0.0, 0.0, 0.2);
