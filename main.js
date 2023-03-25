@@ -27,6 +27,7 @@ async function VirtualBB_prepareSharedWindowStream() {
     var cameraSelectIndex = document.getElementById("cameraSelect").selectedIndex;
     var sharedWindowSelectIndex = document.getElementById("sharedWindowSelect").selectedIndex;
     var underBackgroundElem = document.getElementById("underBackground");
+    var virtualShareWindowVideoElem = document.getElementById("virtualShareWindowVideo");
     var screenStream = null;
 
     try {
@@ -59,6 +60,8 @@ async function VirtualBB_prepareSharedWindowStream() {
         if (screenStream != null) {
             underBackgroundElem.autoplay = true;
             underBackgroundElem.srcObject = screenStream;
+            virtualShareWindowVideoElem.autoplay = true;
+            virtualShareWindowVideoElem.srcObject = screenStream;
             hasShareWindow = true;
             windowShareMode = true;
         }

@@ -152,8 +152,9 @@
     ブラウザ側でマイクやカメラの使用が拒否されています。ブラウザの設定を修正し、ページを更新してください。
   </div>
   <div id="main">
+    <video id="virtualShareWindowVideo" style="display: none"></video>
+    <canvas id="virtualShareWindowCanvas" style="display: none"></canvas>
     <video id="underBackground" style="position: absolute; top: 0px; left: 0px; z-index: 0"></video>
-    <canvas id="underBackgroundCanvas" style="display: none"></canvas>
     <div id="trimmingBox" style="position: absolute; top: 0px; left: 0px; z-index: 1;
     border-style: solid; color: red; border-color: red; border-width: 3px;
     user-select: none; display: none">

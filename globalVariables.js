@@ -24,15 +24,11 @@ var virtualShareWindowTextureInfo = {
     size: virtualShareWindowTextureSize,
     textureData32: null,
     textureData8: null,
-    mapTextureXToCanvas: null,
-    mapTextureYToCanvas: null,
     isChanged: false
 };
 var virtualShareWindowTextureBinary = new ArrayBuffer(virtualShareWindowTextureInfo.size * virtualShareWindowTextureInfo.size * 4);
 virtualShareWindowTextureInfo.textureData32 = new Uint32Array(virtualShareWindowTextureBinary);
 virtualShareWindowTextureInfo.textureData8 = new Uint8Array(virtualShareWindowTextureBinary);
-virtualShareWindowTextureInfo.mapTextureXToCanvas = new Array(virtualBackTextureInfo.size);
-virtualShareWindowTextureInfo.mapTextureYToCanvas = new Array(virtualBackTextureInfo.size);
 
 var gl;
 var texture_max;
