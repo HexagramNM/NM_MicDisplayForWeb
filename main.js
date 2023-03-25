@@ -51,8 +51,8 @@ async function VirtualBB_prepareSharedWindowStream() {
                 audio: false,
                 video: {
                     deviceId: sharedWindowDeviceId ? {exact: sharedWindowDeviceId}: undefined,
-                    width: {ideal: 1920},
-                    height: {ideal: 1080}
+                    width: {ideal: virtualShareWindowTrimmedSize.width},
+                    height: {ideal: virtualShareWindowTrimmedSize.height}
                 }
             });
         }
@@ -96,8 +96,8 @@ async function VirtualBB_startProcess() {
             video: {
                 //virtualBackCanvasSizeはglobalVariables.jsからの変数
                 deviceId: VirtualBB_selectedCameraDeviceId ? {exact: VirtualBB_selectedCameraDeviceId}: undefined,
-                width: {ideal: virtualBackCanvasSize.width},
-                height: {ideal: virtualBackCanvasSize.height}
+                width: {ideal: virtualBackOriginalSize.width},
+                height: {ideal: virtualBackOriginalSize.height}
             }
         });
         //オーディオとビデオの分離
@@ -112,8 +112,8 @@ async function VirtualBB_startProcess() {
 
     await VirtualBack_init(videoStream);
     await VirtualBB_prepareSharedWindowStream();
-    await NM_MicDisplay_init(audioStream);
     SharedWindow_init();
+    await NM_MicDisplay_init(audioStream);
     process_dynamic_texture();
 
     VirtualBack_main();

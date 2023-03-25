@@ -446,8 +446,8 @@ async function NM_MicDisplay_init(micStream) {
 	create_texture('image/redCircle.png?'+new Date().getTime(), 0);
 	create_texture('image/redCircleLight.png?'+new Date().getTime(), 1);
 	create_texture('image/redCircleWave.png?'+new Date().getTime(), 2);
-	create_dynamic_texture(virtualBackTextureInfo, 3);
-	create_dynamic_texture(virtualShareWindowTextureInfo, 4);
+	create_dynamic_texture("virtualBackTexture", 3);
+	create_dynamic_texture("virtualShareWindowTexture", 4);
 
 	m.lookAt([0.0, 9.0, -18.0], [0,2.0,0], [0, 1, 0], vMatrix);
 	m.perspective(60.0, c.width/c.height, 1.0, 100, pMatrix);
@@ -548,8 +548,8 @@ function NM_MicDisplay_updateDftLevel() {
 
 function NM_MicDisplay_updateVirtualShareWindow() {
 	var virtualShareWindowWidth = 0.0;
-	if (virtualShareWindowCanvasSize.height > 0) {
-		virtualShareWindowWidth = virtualShareWindowHeight * virtualShareWindowCanvasSize.width / virtualShareWindowCanvasSize.height;
+	if (virtualShareWindowTrimmedSize.height > 0) {
+		virtualShareWindowWidth = virtualShareWindowHeight * virtualShareWindowTrimmedSize.width / virtualShareWindowTrimmedSize.height;
 	}
 
 	var upperRadius = virtualShareWindowRadius + virtualShareWindowHeight * 0.5 * virtualShareWindowTiltCos;
@@ -729,8 +729,8 @@ function NM_MicDisplay_drawCapture() {
 
 	//virtualBackCanvasSizeはglobalVariables.js内の変数
 	var aspect = 0.0;
-	if (virtualBackCanvasSize.width > 0.0) {
-		aspect = virtualBackCanvasSize.height / virtualBackCanvasSize.width;
+	if (virtualBackOriginalSize.width > 0.0) {
+		aspect = virtualBackOriginalSize.height / virtualBackOriginalSize.width;
 	}
 
 	m.identity(mMatrix);

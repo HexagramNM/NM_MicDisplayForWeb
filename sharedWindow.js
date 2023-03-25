@@ -1,4 +1,6 @@
 
+var virtualShareWindowTextureSize = 512;
+
 //[[left, right], [top, bottom]]の順
 var videoPercentRangeInWindowShareMode = [[0.0, 100.0], [0.0, 100.0]];
 var SharedWindow_previousMousePos = [null, null];
@@ -14,21 +16,18 @@ function ShareWindow_createTextureData() {
 
 	virtualShareWindowVideo.width = virtualShareWindowVideo.videoWidth;
 	virtualShareWindowVideo.height = virtualShareWindowVideo.videoHeight;
-	virtualShareWindowCanvasSize.width = virtualShareWindowWidthRange;
-	virtualShareWindowCanvasSize.height = virtualShareWindowHeightRange;
+	virtualShareWindowTrimmedSize.width = virtualShareWindowWidthRange;
+	virtualShareWindowTrimmedSize.height = virtualShareWindowHeightRange;
 
-	if (virtualShareWindowCanvasSize.width <= 0 || virtualShareWindowCanvasSize.height == 0) {
+	if (virtualShareWindowTrimmedSize.width <= 0 || virtualShareWindowTrimmedSize.height == 0) {
 		return;
 	}
 
-	var virtualShareWindowCanvas = document.getElementById("virtualShareWindowCanvas");
-	virtualShareWindowCanvasCtx = virtualShareWindowCanvas.getContext("2d");
-	virtualShareWindowCanvasCtx.drawImage(virtualShareWindowVideo, virtualShareWindowWidthOffset, virtualShareWindowHeightOffset,
+	var virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
+	var virtualShareWindowTextureCtx = virtualShareWindowTexture.getContext("2d");
+	virtualShareWindowTextureCtx.drawImage(virtualShareWindowVideo, virtualShareWindowWidthOffset, virtualShareWindowHeightOffset,
 		virtualShareWindowWidthRange, virtualShareWindowHeightRange,
 		0, 0, virtualShareWindowTextureSize, virtualShareWindowTextureSize);
-	var virtualShareWindowCtxImage = virtualShareWindowCanvasCtx.getImageData(0, 0, virtualShareWindowTextureSize, virtualShareWindowTextureSize);
-	var inputData = new Uint32Array(virtualShareWindowCtxImage.data.buffer);
-	virtualShareWindowTextureInfo.textureData32.set(inputData, 0);
 }
 
 function SharedWindow_showTrimmingMode() {
@@ -211,11 +210,10 @@ function SharedWindow_init() {
 		document.addEventListener("mousemove", SharedWindow_mouseMoveEvent);
 		document.addEventListener("mouseup", SharedWindow_mouseUpEvent);
 		document.addEventListener("mouseleave", SharedWindow_mouseUpEvent);
-
-		var virtualShareWindowCanvas = document.getElementById("virtualShareWindowCanvas");
-		virtualShareWindowCanvas.width = virtualShareWindowTextureSize;
-		virtualShareWindowCanvas.height = virtualShareWindowTextureSize;
 	}
+	var virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
+	virtualShareWindowTexture.width = virtualShareWindowTextureSize;
+	virtualShareWindowTexture.height = virtualShareWindowTextureSize;
 }
 
 function SharedWindow_main() {
@@ -236,6 +234,5 @@ function SharedWindow_main() {
 		document.getElementById("underBackground").style.display = "none";
 	}
 	ShareWindow_createTextureData();
-	virtualShareWindowTextureInfo.isChanged = true;
     setTimeout(arguments.callee, 1000/60);
 }

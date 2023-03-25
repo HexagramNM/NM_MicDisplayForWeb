@@ -43,11 +43,11 @@ function create_texture(source, number) {
 	img.src = source;
 }
 
-function create_dynamic_texture(textureInfo, number) {
+function create_dynamic_texture(canvasId, number) {
 	if (number >= texture_max) {
 		return;
 	}
-
+	var sourceCanvas = document.getElementById(canvasId);
 	var tex = gl.createTexture();
 	dynamicTextureSetting();
 	textureProcess.push(dynamicTextureSetting);
@@ -55,15 +55,12 @@ function create_dynamic_texture(textureInfo, number) {
 	loadedTextureNum++;
 
 	function dynamicTextureSetting() {
-		if (textureInfo.isChanged) {
-			textureInfo.isChanged = false;
-			gl.activeTexture(gl["TEXTURE" + number.toString()]);
-			gl.bindTexture(gl.TEXTURE_2D, tex);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, textureInfo.size, textureInfo.size, 0, gl.RGBA, gl.UNSIGNED_BYTE, textureInfo.textureData8, 0);
-			gl.generateMipmap(gl.TEXTURE_2D);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
-			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-		}
+		gl.activeTexture(gl["TEXTURE" + number.toString()]);
+		gl.bindTexture(gl.TEXTURE_2D, tex);
+		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+		gl.generateMipmap(gl.TEXTURE_2D);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
+		gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 	}
 }
 

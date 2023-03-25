@@ -153,7 +153,7 @@
   </div>
   <div id="main">
     <video id="virtualShareWindowVideo" style="display: none"></video>
-    <canvas id="virtualShareWindowCanvas" style="display: none"></canvas>
+    <canvas id="virtualShareWindowTexture" style="display: none"></canvas>
     <video id="underBackground" style="position: absolute; top: 0px; left: 0px; z-index: 0"></video>
     <div id="trimmingBox" style="position: absolute; top: 0px; left: 0px; z-index: 1;
     border-style: solid; color: red; border-color: red; border-width: 3px;
@@ -161,8 +161,12 @@
       <h2>トリミングモード</h2>
       辺をドラッグしてください。（Tキーで確定、Rキーで枠のリセット）
     </div>
-    <video id="video" style="display: none"></video>
-    <canvas id="intermediate" style="display: none"></canvas>
+    <video id="virtualBackVideo" style="display: none"></video>
+    <canvas id="virtualBackIntermediate" style="display: none"></canvas>
+    <canvas id="virtualBackBlazePose" style="display: none"></canvas>
+    <canvas id="virtualBackPreviousFrame" style="display: none"></canvas>
+    <canvas id="virtualBackMask" style="display: none"></canvas>
+    <canvas id="virtualBackTexture" style="display: none"></canvas>
     <canvas id="NM_MicDisplayOutput" style="position: relative; z-index: 2"></canvas>
   </div>
 </body>
