@@ -52,7 +52,8 @@ async function VirtualBB_prepareSharedWindowStream() {
                 video: {
                     deviceId: sharedWindowDeviceId ? {exact: sharedWindowDeviceId}: undefined,
                     width: {ideal: virtualShareWindowTrimmedSize.width},
-                    height: {ideal: virtualShareWindowTrimmedSize.height}
+                    height: {ideal: virtualShareWindowTrimmedSize.height},
+                    frameRate: {ideal: 60, min: 30}
                 }
             });
         }
