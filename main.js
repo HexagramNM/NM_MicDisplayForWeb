@@ -1,13 +1,19 @@
 
-import {NM_MicDisplay_init} from "./modules/NM_MicDisplay.js";
-import {SharedWindow_init} from "./modules/sharedWindow.js";
+import {NM_MicDisplay_init,
+    NM_MicDisplay_main} from "./modules/NM_MicDisplay.js";
+import {SharedWindow_init,
+     SharedWindow_main} from "./modules/sharedWindow.js";
 import {VirtualBack_init,
-    VirtualBack_toggleMirror} from "./modules/virtualBack.js";
+    VirtualBack_toggleMirror,
+    VirtualBack_drawTextureCanvas,
+    VirtualBack_preprocess,
+    VirtualBack_postprocess} from "./modules/virtualBack.js";
 
 var VirtualBB_cameraDeviceLists;
 var VirtualBB_selectedCameraDeviceId;
 var VirtualBB_micDeviceLists;
 var VirtualBB_selectedMicDeviceId;
+var VirtualBB_mainTimer = null;
 
 function VirtualBB_getSelectedDeviceId() {
     var cameraSelectIndex = document.getElementById("cameraSelect").selectedIndex;
@@ -122,6 +128,7 @@ async function VirtualBB_startProcess() {
     await VirtualBB_prepareSharedWindowStream();
     SharedWindow_init();
     await NM_MicDisplay_init(audioStream);
+    VirtualBB_mainTimer = setInterval(VirtualBB_main, 1000 / 30);
 }
 
 async function VirtualBB_createDeviceSelector() {
@@ -158,7 +165,7 @@ async function VirtualBB_createDeviceSelector() {
     }
 }
 
-async function VirtualBB_main() {
+async function VirtualBB_onload() {
     document.bgColor=g_backgroundColorCode;
 
     //許可ダイアログの発生（確認後、各トラックは停止させる）
@@ -182,4 +189,14 @@ async function VirtualBB_main() {
     document.getElementById("startButton").addEventListener("click", VirtualBB_startProcess);
 }
 
-window.addEventListener("load", VirtualBB_main);
+window.addEventListener("load", VirtualBB_onload);
+
+async function VirtualBB_main() {
+    await VirtualBack_preprocess();
+    await VirtualBack_drawTextureCanvas();
+    SharedWindow_main();
+    NM_MicDisplay_main();
+    await VirtualBack_postprocess();
+    SharedWindow_main();
+    NM_MicDisplay_main();
+}

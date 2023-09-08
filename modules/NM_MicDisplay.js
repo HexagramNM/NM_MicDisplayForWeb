@@ -803,8 +803,7 @@ function NM_MicDisplay_draw() {
 	g_gl.flush();
 }
 
-function NM_MicDisplay_main() {
-	requestAnimationFrame(NM_MicDisplay_main);
+export function NM_MicDisplay_main() {
 	NM_MicDislay_adjustCanvasSize(false);
 	if (finish_load_texture()) {
 		NM_MicDisplay_updateWave();

@@ -4,7 +4,6 @@ var virtualShareWindowTextureSize = 512;
 //[[left, right], [top, bottom]]の順
 var videoPercentRangeInWindowShareMode = [[0.0, 100.0], [0.0, 100.0]];
 var SharedWindow_previousMousePos = [null, null];
-var SharedWindow_mainTimer = null;
 
 function ShareWindow_createTextureData() {
 	var virtualShareWindowVideo = document.getElementById("virtualShareWindowVideo");
@@ -219,10 +218,9 @@ export function SharedWindow_init() {
 	var virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
 	virtualShareWindowTexture.width = virtualShareWindowTextureSize;
 	virtualShareWindowTexture.height = virtualShareWindowTextureSize;
-	SharedWindow_mainTimer = setInterval(SharedWindow_main, 1000/30);
 }
 
-function SharedWindow_main() {
+export function SharedWindow_main() {
 	if (!g_hasShareWindow) {
 		return;
 	}
