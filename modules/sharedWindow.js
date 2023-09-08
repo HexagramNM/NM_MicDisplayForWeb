@@ -4,6 +4,7 @@ var virtualShareWindowTextureSize = 512;
 //[[left, right], [top, bottom]]の順
 var videoPercentRangeInWindowShareMode = [[0.0, 100.0], [0.0, 100.0]];
 var SharedWindow_previousMousePos = [null, null];
+var SharedWindow_mainTimer = null;
 
 function ShareWindow_createTextureData() {
 	var virtualShareWindowVideo = document.getElementById("virtualShareWindowVideo");
@@ -16,10 +17,10 @@ function ShareWindow_createTextureData() {
 
 	virtualShareWindowVideo.width = virtualShareWindowVideo.videoWidth;
 	virtualShareWindowVideo.height = virtualShareWindowVideo.videoHeight;
-	virtualShareWindowTrimmedSize.width = virtualShareWindowWidthRange;
-	virtualShareWindowTrimmedSize.height = virtualShareWindowHeightRange;
+	g_virtualShareWindowTrimmedSize.width = virtualShareWindowWidthRange;
+	g_virtualShareWindowTrimmedSize.height = virtualShareWindowHeightRange;
 
-	if (virtualShareWindowTrimmedSize.width <= 0 || virtualShareWindowTrimmedSize.height == 0) {
+	if (g_virtualShareWindowTrimmedSize.width <= 0 || g_virtualShareWindowTrimmedSize.height == 0) {
 		return;
 	}
 
@@ -28,6 +29,10 @@ function ShareWindow_createTextureData() {
 	virtualShareWindowTextureCtx.drawImage(virtualShareWindowVideo, virtualShareWindowWidthOffset, virtualShareWindowHeightOffset,
 		virtualShareWindowWidthRange, virtualShareWindowHeightRange,
 		0, 0, virtualShareWindowTextureSize, virtualShareWindowTextureSize);
+
+	if (g_virtualShareWindowTextureObj != null) {
+		g_virtualShareWindowTextureObj.redraw();
+	}
 }
 
 function SharedWindow_showTrimmingMode() {
@@ -115,14 +120,14 @@ function SharedWindow_showTrimmedWindow() {
 
 function SharedWindow_keyUpEvent(event) {
 	if (event.key == "t") {
-		if (windowShareMode) {
-			trimmingMode = !trimmingMode;
+		if (g_windowShareMode) {
+			g_trimmingMode = !g_trimmingMode;
 			SharedWindow_previousMousePos[0] = null;
 			SharedWindow_previousMousePos[1] = null;
 		}
 	}
 	else if (event.key == "r") {
-		if (trimmingMode) {
+		if (g_trimmingMode) {
 			videoPercentRangeInWindowShareMode[0][0] = 0.0;
 			videoPercentRangeInWindowShareMode[0][1] = 100.0;
 			videoPercentRangeInWindowShareMode[1][0] = 0.0;
@@ -130,28 +135,28 @@ function SharedWindow_keyUpEvent(event) {
 		}
 	}
 	else if (event.key == "b") {
-		if (windowShareMode) {
-			windowShareBackEnable = !windowShareBackEnable;
+		if (g_windowShareMode) {
+			g_windowShareBackEnable = !g_windowShareBackEnable;
 		}
 	}
 	else if (event.key == "s") {
-		trimmingMode = false;
-		windowShareBackEnable = false;
+		g_trimmingMode = false;
+		g_windowShareBackEnable = false;
 		SharedWindow_previousMousePos[0] = null;
 		SharedWindow_previousMousePos[1] = null;
-		windowShareMode = !windowShareMode;
+		g_windowShareMode = !g_windowShareMode;
 	}
 }
 
 function SharedWindow_mouseDownEvent(event) {
-	if (trimmingMode) {
+	if (g_trimmingMode) {
 		SharedWindow_previousMousePos[0] = event.pageX;
 		SharedWindow_previousMousePos[1] = event.pageY;
 	}
 }
 
 function SharedWindow_mouseMoveEvent(event) {
-	if (SharedWindow_previousMousePos[0] != null && SharedWindow_previousMousePos[1] != null && trimmingMode) {
+	if (SharedWindow_previousMousePos[0] != null && SharedWindow_previousMousePos[1] != null && g_trimmingMode) {
 		var underBackgroundVideo = document.getElementById("underBackground");
 		var underBackgroundVideoWidth = underBackgroundVideo.videoWidth;
 		var underBackgroundVideoHeight = underBackgroundVideo.videoHeight;
@@ -203,8 +208,8 @@ function SharedWindow_mouseUpEvent(event) {
 	SharedWindow_previousMousePos[1] = null;
 }
 
-function SharedWindow_init() {
-	if (hasShareWindow) {
+export function SharedWindow_init() {
+	if (g_hasShareWindow) {
 		document.addEventListener("keyup", SharedWindow_keyUpEvent);
 		document.addEventListener("mousedown", SharedWindow_mouseDownEvent);
 		document.addEventListener("mousemove", SharedWindow_mouseMoveEvent);
@@ -214,15 +219,16 @@ function SharedWindow_init() {
 	var virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
 	virtualShareWindowTexture.width = virtualShareWindowTextureSize;
 	virtualShareWindowTexture.height = virtualShareWindowTextureSize;
+	SharedWindow_mainTimer = setInterval(SharedWindow_main, 1000/30);
 }
 
 function SharedWindow_main() {
-	if (!hasShareWindow) {
+	if (!g_hasShareWindow) {
 		return;
 	}
 
-	if (windowShareMode) {
-        if (trimmingMode) {
+	if (g_windowShareMode) {
+        if (g_trimmingMode) {
     		SharedWindow_showTrimmingMode();
     	}
     	else {
@@ -234,5 +240,4 @@ function SharedWindow_main() {
 		document.getElementById("underBackground").style.display = "none";
 	}
 	ShareWindow_createTextureData();
-    setTimeout(arguments.callee, 1000/60);
 }

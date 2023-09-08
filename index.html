@@ -13,12 +13,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
 
   <script type="text/javascript" src="globalVariables.js"></script>
-  <script type="text/javascript" src="createWebGLObj.js"></script>
-  <script type="text/javascript" src="virtualBack.js"></script>
-  <script type="text/javascript" src="sharedWindow.js"></script>
-  <script type="text/javascript" src="minMatrix.js"></script>
-  <script type="text/javascript" src="NM_MicDisplay.js"></script>
-  <script type="text/javascript" src="main.js"></script>
+  <script type="module" src="modules/createWebGLObj.js"></script>
+  <script type="module" src="modules/virtualBack.js"></script>
+  <script type="module" src="modules/sharedWindow.js"></script>
+  <script type="module" src="modules/minMatrix.js"></script>
+  <script type="module" src="modules/NM_MicDisplay.js"></script>
+  <script type="module" src="main.js"></script>
 
   <script id="vshader" type="x-shader/x-vertex">
   		attribute vec3 position;
@@ -124,7 +124,7 @@
   </head>
 </head>
 
-<body onload="VirtualBB_main()" style="margin: 0; padding: 0; overflow: hidden">
+<body style="margin: 0; padding: 0; overflow: hidden">
   <div id="easyInst" style="color: #FFFFFF">
     <h2>使用方法</h2>
     1. マイクやカメラについて使用許可の確認画面が出てきたら、許可してください。<br>

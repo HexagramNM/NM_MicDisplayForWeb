@@ -4,7 +4,7 @@
 // Copyright (c) doxas
 // ------------------------------------------------------------------------------------------------
 
-function matIV(){
+export function matIV(){
 	this.create = function(){
 		return new Float32Array(16);
 	};

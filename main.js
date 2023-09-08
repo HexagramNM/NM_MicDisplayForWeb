@@ -1,4 +1,9 @@
 
+import {NM_MicDisplay_init} from "./modules/NM_MicDisplay.js";
+import {SharedWindow_init} from "./modules/sharedWindow.js";
+import {VirtualBack_init,
+    VirtualBack_toggleMirror} from "./modules/virtualBack.js";
+
 var VirtualBB_cameraDeviceLists;
 var VirtualBB_selectedCameraDeviceId;
 var VirtualBB_micDeviceLists;
@@ -41,7 +46,9 @@ async function VirtualBB_prepareSharedWindowStream() {
             screenStream = await navigator.mediaDevices.getDisplayMedia({
                 audio: false,
                 video: {
-                    cursor: "never"
+                    cursor: "never",
+                    width: {max: 1920},
+                    height: {max: 1080}
                 }
             });
         }
@@ -51,8 +58,8 @@ async function VirtualBB_prepareSharedWindowStream() {
                 audio: false,
                 video: {
                     deviceId: sharedWindowDeviceId ? {exact: sharedWindowDeviceId}: undefined,
-                    width: {ideal: virtualShareWindowTrimmedSize.width},
-                    height: {ideal: virtualShareWindowTrimmedSize.height},
+                    width: {ideal: g_virtualShareWindowTrimmedSize.width, max: 1920},
+                    height: {ideal: g_virtualShareWindowTrimmedSize.height, max: 1080},
                     frameRate: {ideal: 60, min: 30}
                 }
             });
@@ -63,18 +70,18 @@ async function VirtualBB_prepareSharedWindowStream() {
             underBackgroundElem.srcObject = screenStream;
             virtualShareWindowVideoElem.autoplay = true;
             virtualShareWindowVideoElem.srcObject = screenStream;
-            hasShareWindow = true;
-            windowShareMode = true;
+            g_hasShareWindow = true;
+            g_windowShareMode = true;
         }
     }
     catch(err) {
-        hasShareWindow = false;
-        windowShareMode = false;
+        g_hasShareWindow = false;
+        g_windowShareMode = false;
     }
 }
 
 function VirtualBB_toggleMirror() {
-    mirrorVirtualBack = !mirrorVirtualBack;
+    VirtualBack_toggleMirror();
     //右クリックによるメニューを抑制
     return false;
 }
@@ -97,8 +104,8 @@ async function VirtualBB_startProcess() {
             video: {
                 //virtualBackCanvasSizeはglobalVariables.jsからの変数
                 deviceId: VirtualBB_selectedCameraDeviceId ? {exact: VirtualBB_selectedCameraDeviceId}: undefined,
-                width: {ideal: virtualBackOriginalSize.width},
-                height: {ideal: virtualBackOriginalSize.height}
+                width: {ideal: g_virtualBackOriginalSize.width},
+                height: {ideal: g_virtualBackOriginalSize.height}
             }
         });
         //オーディオとビデオの分離
@@ -115,11 +122,6 @@ async function VirtualBB_startProcess() {
     await VirtualBB_prepareSharedWindowStream();
     SharedWindow_init();
     await NM_MicDisplay_init(audioStream);
-    process_dynamic_texture();
-
-    VirtualBack_main();
-    NM_MicDisplay_main();
-    SharedWindow_main();
 }
 
 async function VirtualBB_createDeviceSelector() {
@@ -157,11 +159,11 @@ async function VirtualBB_createDeviceSelector() {
 }
 
 async function VirtualBB_main() {
-    document.bgColor=backgroundColorCode;
+    document.bgColor=g_backgroundColorCode;
 
     //許可ダイアログの発生（確認後、各トラックは停止させる）
     try {
-        mediaStream = await navigator.mediaDevices.getUserMedia({
+        var mediaStream = await navigator.mediaDevices.getUserMedia({
             audio: true,
             video: true
         });
@@ -179,3 +181,5 @@ async function VirtualBB_main() {
     document.getElementById("startButton").disabled = false;
     document.getElementById("startButton").addEventListener("click", VirtualBB_startProcess);
 }
+
+window.addEventListener("load", VirtualBB_main);

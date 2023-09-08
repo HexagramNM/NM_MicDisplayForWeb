@@ -1,8 +1,9 @@
+
 //設定変数
 var blazePoseCanvasSize = 128;
 var virtualBackTextureSize = 1024;
 
-var blasePoseNet = null;
+var blazePoseNet = null;
 
 var virtualBackVideoComponent = null;
 var virtualBackIntermediateCanvas = null;
@@ -18,6 +19,7 @@ var virtualBackTextureCanvasCtx = null;
 
 var mirrorVirtualBack = false;
 var processedSegmentResult = null;
+var VirtualBack_mainTimer = null;
 
 async function VirtualBack_drawTextureCanvas(i_processedSegmentResult) {
     virtualBackTextureCanvasCtx.setTransform(1, 0, 0, 1, 0, 0);
@@ -25,6 +27,7 @@ async function VirtualBack_drawTextureCanvas(i_processedSegmentResult) {
         virtualBackTextureCanvasCtx.scale(-1, 1);
         virtualBackTextureCanvasCtx.translate(-virtualBackTextureSize, 0);
     }
+
     if (i_processedSegmentResult.length > 0) {
         virtualBackTextureCanvasCtx.globalCompositeOperation = "source-over";
         virtualBackTextureCanvasCtx.drawImage(virtualBackPreviousFrameCanvas, 0, 0,
@@ -44,27 +47,35 @@ async function VirtualBack_drawTextureCanvas(i_processedSegmentResult) {
         virtualBackTextureCanvasCtx.fillStyle = "rgba(0, 0, 0, 1)";
         virtualBackTextureCanvasCtx.fillRect(0, 0, virtualBackTextureSize, virtualBackTextureSize);
     }
+
+    if (g_virtualBackTextureObj != null) {
+        g_virtualBackTextureObj.redraw();
+    }
 }
 
-async function VirtualBack_init(videoStream) {
+export function VirtualBack_toggleMirror() {
+    mirrorVirtualBack = !mirrorVirtualBack;
+}
+
+export async function VirtualBack_init(videoStream) {
     mirrorVirtualBack = false;
 
-    videoTracks = videoStream.getVideoTracks();
+    var videoTracks = videoStream.getVideoTracks();
     if (videoTracks.length <= 0) {
         return;
     }
-    virtualBackOriginalSize.width = videoTracks[0].getSettings().width;
-    virtualBackOriginalSize.height = videoTracks[0].getSettings().height;
+    g_virtualBackOriginalSize.width = videoTracks[0].getSettings().width;
+    g_virtualBackOriginalSize.height = videoTracks[0].getSettings().height;
 
     virtualBackVideoComponent = document.getElementById("virtualBackVideo");
-    virtualBackVideoComponent.width = virtualBackOriginalSize.width;
-    virtualBackVideoComponent.height = virtualBackOriginalSize.height;
+    virtualBackVideoComponent.width = g_virtualBackOriginalSize.width;
+    virtualBackVideoComponent.height = g_virtualBackOriginalSize.height;
     virtualBackVideoComponent.autoplay = true;
     virtualBackVideoComponent.srcObject = videoStream;
 
     virtualBackIntermediateCanvas = document.getElementById("virtualBackIntermediate");
-    virtualBackIntermediateCanvas.width = virtualBackOriginalSize.width;
-    virtualBackIntermediateCanvas.height = virtualBackOriginalSize.height;
+    virtualBackIntermediateCanvas.width = g_virtualBackOriginalSize.width;
+    virtualBackIntermediateCanvas.height = g_virtualBackOriginalSize.height;
     virtualBackIntermediateCanvasCtx = virtualBackIntermediateCanvas.getContext("2d");
 
     virtualBackBlazePoseCanvas = document.getElementById("virtualBackBlazePose");
@@ -73,8 +84,8 @@ async function VirtualBack_init(videoStream) {
     virtualBackBlazePoseCanvasCtx = virtualBackBlazePoseCanvas.getContext("2d");
 
     virtualBackPreviousFrameCanvas = document.getElementById("virtualBackPreviousFrame");
-    virtualBackPreviousFrameCanvas.width = virtualBackOriginalSize.width;
-    virtualBackPreviousFrameCanvas.height = virtualBackOriginalSize.height;
+    virtualBackPreviousFrameCanvas.width = g_virtualBackOriginalSize.width;
+    virtualBackPreviousFrameCanvas.height = g_virtualBackOriginalSize.height;
     virtualBackPreviousFrameCanvasCtx = virtualBackPreviousFrameCanvas.getContext("2d");
 
     virtualBackMaskCanvas = document.getElementById("virtualBackMask");
@@ -95,14 +106,14 @@ async function VirtualBack_init(videoStream) {
     };
     blazePoseNet = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, detectorConfig);
 
+    VirtualBack_mainTimer = setInterval(VirtualBack_main, 1000/30);
 }
 
 async function VirtualBack_main() {
     //var startTime = performance.now();
-    virtualBackIntermediateCanvasCtx.drawImage(virtualBackVideoComponent, 0, 0,
-        virtualBackOriginalSize.width, virtualBackOriginalSize.height);
+    virtualBackIntermediateCanvasCtx.drawImage(virtualBackVideoComponent, 0, 0);
     virtualBackBlazePoseCanvasCtx.drawImage(virtualBackIntermediateCanvas, 0, 0,
-        virtualBackOriginalSize.width, virtualBackOriginalSize.height,
+        g_virtualBackOriginalSize.width, g_virtualBackOriginalSize.height,
         0, 0, blazePoseCanvasSize, blazePoseCanvasSize);
 
     var blazePosePromise = blazePoseNet.estimatePoses(virtualBackBlazePoseCanvas);
@@ -111,11 +122,8 @@ async function VirtualBack_main() {
     }
     processedSegmentResult = await blazePosePromise;
 
-    virtualBackPreviousFrameCanvasCtx.drawImage(virtualBackIntermediateCanvas, 0, 0,
-        virtualBackOriginalSize.width, virtualBackOriginalSize.height);
+    virtualBackPreviousFrameCanvasCtx.drawImage(virtualBackIntermediateCanvas, 0, 0);
 
     //var endTime = performance.now();
     //console.log(endTime - startTime);
-
-    setTimeout(arguments.callee, 1000/60);
 }
