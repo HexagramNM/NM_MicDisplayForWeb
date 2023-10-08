@@ -104,7 +104,7 @@ export async function VirtualBack_init(videoStream) {
     const detectorConfig = {
         runtime: "mediapipe",
         enableSegmentation: true,
-        modelType: "lite",
+        modelType: g_blazePoseModelType,
         solutionPath: "https://cdn.jsdelivr.net/npm/@mediapipe/pose"
     };
     blazePoseNet = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, detectorConfig);

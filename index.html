@@ -61,6 +61,17 @@
         smpColor.g = (grayScale * 0.75 + 0.1);
         smpColor.b = (grayScale * 0.8 + 0.2);
 
+        vec3 outlineColor;
+        float outlineAlpha = pow(sin(smpColor.a * PI), 6.0);
+        outlineColor.r = outlineAlpha * 0.8;
+        outlineColor.g = outlineAlpha * 1.0;
+        outlineColor.b = 1.0;
+
+        smpColor.r = (1.0 - outlineAlpha) * smpColor.r + outlineAlpha * outlineColor.r;
+        smpColor.g = (1.0 - outlineAlpha) * smpColor.g + outlineAlpha * outlineColor.g;
+        smpColor.b = (1.0 - outlineAlpha) * smpColor.b + outlineAlpha * outlineColor.b;
+        smpColor.a = min(1.0, smpColor.a + outlineAlpha * 0.9);
+
         edgeAlpha = clamp(vTextureCoord.x, 0.0, widthEdge) * invWidthEdge;
         edgeAlpha = min(clamp(1.0 - vTextureCoord.x, 0.0, widthEdge) * invWidthEdge, edgeAlpha);
         edgeAlpha = min(clamp(vTextureCoord.y, 0.0, heightEdge) * invHeightEdge, edgeAlpha);
@@ -145,6 +156,11 @@
     画面共有：<select id="sharedWindowSelect" style="width: 200px">
       <option value="none">しない</option>
       <option value="windowCapture">ウィンドウをキャプチャ</option>
+    </select><br>
+    BlazePoseモデル：<select id="blazePoseModelType" style="width: 200px">
+      <option value="full">full (標準)</option>
+      <option value="lite">lite (軽量)</option>
+      <option value="heavy">heavy (高品質)</option>
     </select><br>
     <button id="startButton" type="button" disabled>スタート</button>
   </div>

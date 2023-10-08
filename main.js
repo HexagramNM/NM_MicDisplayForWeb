@@ -124,6 +124,10 @@ async function VirtualBB_startProcess() {
         return;
     }
 
+    var blazePoseNodelTypeForm = document.getElementById("blazePoseModelType");
+    var blazePoseModelTypeIdx = blazePoseNodelTypeForm.selectedIndex;
+    g_blazePoseModelType = blazePoseNodelTypeForm.options[blazePoseModelTypeIdx].value;
+
     await VirtualBack_init(videoStream);
     await VirtualBB_prepareSharedWindowStream();
     SharedWindow_init();
