@@ -66,21 +66,20 @@ export class DynamicTexture {
 	}
 }
 
-export function create_shader(id) {
+export function create_shader(src, shaderType) {
     var shader;
-    var scriptElement=document.getElementById(id);
-    if (!scriptElement){return;}
-    switch(scriptElement.type) {
-        case 'x-shader/x-vertex':
-            shader=g_gl.createShader(g_gl.VERTEX_SHADER);
-            break;
-        case 'x-shader/x-fragment':
-            shader=g_gl.createShader(g_gl.FRAGMENT_SHADER);
-            break;
-        default:
-            return;
-    }
-    g_gl.shaderSource(shader, scriptElement.text);
+    if (!src){return;}
+		switch (shaderType) {
+			case "x-shader/x-vertex":
+				shader=g_gl.createShader(g_gl.VERTEX_SHADER);
+				break;
+			case "x-shader/x-fragment":
+				shader=g_gl.createShader(g_gl.FRAGMENT_SHADER);
+				break;
+			default:
+				return;
+		}
+    g_gl.shaderSource(shader, src);
     g_gl.compileShader(shader);
     if (g_gl.getShaderParameter(shader, g_gl.COMPILE_STATUS)) {
         return shader;

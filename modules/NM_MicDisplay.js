@@ -8,6 +8,11 @@ import {create_vbo,
 	DynamicTexture,
 	finish_load_texture} from "./createWebGLObj.js";
 
+import normalVshaderSrc from "./../shaders/normalVshader.vert.js"
+import normalFshaderSrc from "./../shaders/normalFshader.frag.js"
+import backMaskShaderSrc from "./../shaders/backMaskShader.frag.js"
+import virtualShareWindowShaderSrc from "./../shaders/virtualShareWindowShader.frag.js"
+
 var NM_MicDisplay_count = 0;
 var NM_MicDisplay_fps = 60.0;
 var NM_MicDisplay_previousTimestamp = null;
@@ -426,10 +431,10 @@ export async function NM_MicDisplay_init(micStream) {
 	c.addEventListener("mousemove", NM_MicDisplay_mouseMoveEvent);
 	await NM_MicDisplay_micInit(micStream);
 
-	var v_shader=create_shader('vshader');
-	var f_shader=create_shader('fshader');
-	var backMaskFragmentShader=create_shader('backMaskShader');
-	var virtualShareWindowFragmentShader=create_shader('virtualShareWindowShader');
+	var v_shader=create_shader(normalVshaderSrc, "x-shader/x-vertex");
+	var f_shader=create_shader(normalFshaderSrc, "x-shader/x-fragment");
+	var backMaskFshader=create_shader(backMaskShaderSrc, "x-shader/x-fragment");
+	var virtualShareWindowFshader=create_shader(virtualShareWindowShaderSrc, "x-shader/x-fragment");
 
 	//normalShaderのプログラム設定
 	normalShaderInfo.program = create_program(v_shader, f_shader);
@@ -438,10 +443,10 @@ export async function NM_MicDisplay_init(micStream) {
 	normalShaderInfo.uniLocation[3] = g_gl.getUniformLocation(normalShaderInfo.program, 'globalColor');
 
 	//virtualBackShaderのプログラム設定
-	virtualBackShaderInfo.program = create_program(v_shader, backMaskFragmentShader);
+	virtualBackShaderInfo.program = create_program(v_shader, backMaskFshader);
 	setupCommonShaderProgram(virtualBackShaderInfo);
 
-	virtualShareWindowShaderInfo.program = create_program(v_shader, virtualShareWindowFragmentShader);
+	virtualShareWindowShaderInfo.program = create_program(v_shader, virtualShareWindowFshader);
 	setupCommonShaderProgram(virtualShareWindowShaderInfo)
 
 	NM_MicDisplay_createPlaneBuffer();
