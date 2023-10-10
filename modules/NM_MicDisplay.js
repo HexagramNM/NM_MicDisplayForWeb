@@ -8,10 +8,10 @@ import {create_vbo,
 	DynamicTexture,
 	finish_load_texture} from "./createWebGLObj.js";
 
-import normalVshaderSrc from "./../shaders/normalVshader.vert.js"
-import normalFshaderSrc from "./../shaders/normalFshader.frag.js"
-import backMaskShaderSrc from "./../shaders/backMaskShader.frag.js"
-import virtualShareWindowShaderSrc from "./../shaders/virtualShareWindowShader.frag.js"
+import normalVshaderSrc from "./../shaders/normalVshader.vert.js";
+import normalFshaderSrc from "./../shaders/normalFshader.frag.js";
+import backMaskShaderSrc from "./../shaders/backMaskShader.frag.js";
+import virtualShareWindowShaderSrc from "./../shaders/virtualShareWindowShader.frag.js";
 
 var NM_MicDisplay_count = 0;
 var NM_MicDisplay_fps = 60.0;
