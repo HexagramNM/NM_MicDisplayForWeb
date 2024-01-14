@@ -1,5 +1,6 @@
 
-import {NM_MicDisplay_init,
+import {NM_MicDisplay_editCaptureTexture,
+    NM_MicDisplay_init,
     NM_MicDisplay_main} from "./modules/NM_MicDisplay.js";
 import {SharedWindow_init,
      SharedWindow_main} from "./modules/sharedWindow.js";
@@ -198,6 +199,7 @@ window.addEventListener("load", VirtualBB_onload);
 async function VirtualBB_main() {
     await VirtualBack_preprocess();
     await VirtualBack_drawTextureCanvas();
+    NM_MicDisplay_editCaptureTexture();
     SharedWindow_main();
     NM_MicDisplay_main();
     await VirtualBack_postprocess();

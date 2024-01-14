@@ -7,15 +7,20 @@ import {create_vbo,
 	create_texture,
 	DynamicTexture,
 	finish_load_texture} from "./createWebGLObj.js";
+import {VirtualBackEffector} from "./virtualBackEffector.js";
+import {OutlineTextureGenerator} from "./outlineTextureGenerator.js";
 
 import normalVshaderSrc from "./../shaders/normalVshader.vert.js";
 import normalFshaderSrc from "./../shaders/normalFshader.frag.js";
-import backMaskShaderSrc from "./../shaders/backMaskShader.frag.js";
-import virtualShareWindowShaderSrc from "./../shaders/virtualShareWindowShader.frag.js";
+import cornerFadeFshaderSrc from "./../shaders/cornerFadeFshader.frag.js";
+import virtualShareWindowFshaderSrc from "./../shaders/virtualShareWindowFshader.frag.js";
 
 var NM_MicDisplay_count = 0;
 var NM_MicDisplay_fps = 60.0;
 var NM_MicDisplay_previousTimestamp = null;
+
+var virtualBackEffector;
+var outlineTextureGenerator;
 
 var micAnalyser;
 var waveData;
@@ -57,15 +62,6 @@ var virtualShareWindowShaderInfo = {
 	uniLocation: new Array()
 }
 
-var index = [
-	0, 2, 1,
-	1, 2, 3
-];
-
-var position_vbo;
-var color_vbo;
-var texture_vbo;
-var index_ibo;
 var defaultGlobalColor;
 var circleColor;
 var circleLightColor
@@ -149,34 +145,11 @@ async function NM_MicDisplay_micInit(micStream) {
 	}
 }
 
-function NM_MicDisplay_createPlaneBuffer() {
-	var vertex_position = [
-		-1.0, 1.0, 0.0,
-		1.0, 1.0, 0.0,
-		-1.0, -1.0, 0.0,
-		1.0,-1.0,0.0
-
-	];
-	var vertex_color = [
-		1.0,1.0,1.0,1.0,
-		1.0,1.0,1.0,1.0,
-		1.0,1.0,1.0,1.0,
-		1.0,1.0,1.0,1.0
-	];
-	var texture_coord=[
-		0.0, 0.0,
-		1.0, 0.0,
-		0.0, 1.0,
-		1.0, 1.0
-	];
+function NM_MicDisplay_initColor() {
 	defaultGlobalColor = new Float32Array([1.0, 1.0, 1.0, 1.0]);
 	circleColor = new Float32Array([1.0, 1.0, 1.0, 1.0]);
 	circleLightColor = new Float32Array([1.0, 0.5, 0.5, 0.0]);
 	emitWaveColor = new Float32Array([1.0, 1.0, 1.0, 1.0]);
-	position_vbo = create_vbo(vertex_position);
-	color_vbo = create_vbo(vertex_color);
-	texture_vbo = create_vbo(texture_coord);
-	index_ibo = create_ibo(index);
 }
 
 function NM_MicDisplay_createDftBarBuffer() {
@@ -423,6 +396,7 @@ export async function NM_MicDisplay_init(micStream) {
 	}
 	g_gl=c.getContext('webgl')||c.getContext('experimental-webgl');
 	g_texture_max = g_gl.getParameter(g_gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS);
+	g_createPlaneBuffer();
 
 	NM_MicDislay_adjustCanvasSize(true);
 	c.addEventListener("mousedown", NM_MicDisplay_mouseDownEvent);
@@ -433,8 +407,8 @@ export async function NM_MicDisplay_init(micStream) {
 
 	var v_shader=create_shader(normalVshaderSrc, "x-shader/x-vertex");
 	var f_shader=create_shader(normalFshaderSrc, "x-shader/x-fragment");
-	var backMaskFshader=create_shader(backMaskShaderSrc, "x-shader/x-fragment");
-	var virtualShareWindowFshader=create_shader(virtualShareWindowShaderSrc, "x-shader/x-fragment");
+	var cornerFadeFshader=create_shader(cornerFadeFshaderSrc, "x-shader/x-fragment");
+	var virtualShareWindowFshader=create_shader(virtualShareWindowFshaderSrc, "x-shader/x-fragment");
 
 	//normalShaderのプログラム設定
 	normalShaderInfo.program = create_program(v_shader, f_shader);
@@ -443,13 +417,14 @@ export async function NM_MicDisplay_init(micStream) {
 	normalShaderInfo.uniLocation[3] = g_gl.getUniformLocation(normalShaderInfo.program, 'globalColor');
 
 	//virtualBackShaderのプログラム設定
-	virtualBackShaderInfo.program = create_program(v_shader, backMaskFshader);
+	virtualBackShaderInfo.program = create_program(v_shader, cornerFadeFshader);
 	setupCommonShaderProgram(virtualBackShaderInfo);
 
 	virtualShareWindowShaderInfo.program = create_program(v_shader, virtualShareWindowFshader);
-	setupCommonShaderProgram(virtualShareWindowShaderInfo)
+	setupCommonShaderProgram(virtualShareWindowShaderInfo);
+	virtualShareWindowShaderInfo.uniLocation[2] = g_gl.getUniformLocation(virtualShareWindowShaderInfo.program, 'time');
 
-	NM_MicDisplay_createPlaneBuffer();
+	NM_MicDisplay_initColor();
 	NM_MicDisplay_createDftBarBuffer()
 	NM_MicDisplay_createSoundWaveBuffer();
 	NM_MicDisplay_createVirtualShareWindowBuffeer();
@@ -463,7 +438,13 @@ export async function NM_MicDisplay_init(micStream) {
 	create_texture('image/redCircleLight.png?'+new Date().getTime(), 1);
 	create_texture('image/redCircleWave.png?'+new Date().getTime(), 2);
 	g_virtualBackTextureObj = new DynamicTexture("virtualBackTexture", 3);
-	g_virtualShareWindowTextureObj = new DynamicTexture("virtualShareWindowTexture", 4);;
+	g_gl.texParameteri(g_gl.TEXTURE_2D, g_gl.TEXTURE_WRAP_S, g_gl.CLAMP_TO_EDGE);
+	g_gl.texParameteri(g_gl.TEXTURE_2D, g_gl.TEXTURE_WRAP_T, g_gl.CLAMP_TO_EDGE);
+
+	g_virtualShareWindowTextureObj = new DynamicTexture("virtualShareWindowTexture", 4);
+	var virtualBackTextureSize = document.getElementById("virtualBackTexture").width;
+	virtualBackEffector = new VirtualBackEffector(virtualBackTextureSize, 5);
+	outlineTextureGenerator = new OutlineTextureGenerator(virtualBackTextureSize, 2, 5, 6);
 
 	m.lookAt([0.0, 9.0, -18.0], [0,2.0,0], [0, 1, 0], vMatrix);
 	m.perspective(60.0, c.width/c.height, 1.0, 100, pMatrix);
@@ -478,7 +459,6 @@ export async function NM_MicDisplay_init(micStream) {
 	    shaderInfo.attStride[2]=2;
 	    shaderInfo.uniLocation[0] = g_gl.getUniformLocation(shaderInfo.program, 'mvpMatrix');
 	    shaderInfo.uniLocation[1] = g_gl.getUniformLocation(shaderInfo.program, 'texture');
-		shaderInfo.uniLocation[2] = g_gl.getUniformLocation(shaderInfo.program, 'time');
 	}
 	NM_MicDisplay_previousTimestamp =  performance.now();
 	requestAnimationFrame(NM_MicDisplay_main);
@@ -587,16 +567,16 @@ function NM_MicDisplay_updateVirtualShareWindow() {
 }
 
 function NM_MicDisplay_drawEmitWave() {
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, position_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_position_vbo);
 	g_gl.enableVertexAttribArray(normalShaderInfo.attLocation[0]);
 	g_gl.vertexAttribPointer(normalShaderInfo.attLocation[0], normalShaderInfo.attStride[0], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, color_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_color_vbo);
 	g_gl.enableVertexAttribArray(normalShaderInfo.attLocation[1]);
 	g_gl.vertexAttribPointer(normalShaderInfo.attLocation[1], normalShaderInfo.attStride[1], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, texture_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_texture_vbo);
 	g_gl.enableVertexAttribArray(normalShaderInfo.attLocation[2]);
 	g_gl.vertexAttribPointer(normalShaderInfo.attLocation[2], normalShaderInfo.attStride[2], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ELEMENT_ARRAY_BUFFER, index_ibo);
+	g_gl.bindBuffer(g_gl.ELEMENT_ARRAY_BUFFER, g_plane_index_ibo);
 	g_gl.uniform1i(normalShaderInfo.uniLocation[1], 2);
 	g_gl.uniform1i(normalShaderInfo.uniLocation[2], 1);
 
@@ -613,7 +593,7 @@ function NM_MicDisplay_drawEmitWave() {
 
 			g_gl.uniformMatrix4fv(normalShaderInfo.uniLocation[0], false, mvpMatrix);
 			g_gl.uniform4fv(normalShaderInfo.uniLocation[3], emitWaveColor);
-			g_gl.drawElements(g_gl.TRIANGLES, index.length, g_gl.UNSIGNED_SHORT, 0);
+			g_gl.drawElements(g_gl.TRIANGLES, g_plane_index.length, g_gl.UNSIGNED_SHORT, 0);
 		}
 	}
 }
@@ -648,13 +628,13 @@ function NM_MicDisplay_drawDftBarBackFrame() {
 }
 
 function NM_MicDisplay_drawDftBarFrontBody() {
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, position_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_position_vbo);
 	g_gl.enableVertexAttribArray(normalShaderInfo.attLocation[0]);
 	g_gl.vertexAttribPointer(normalShaderInfo.attLocation[0], normalShaderInfo.attStride[0], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, texture_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_texture_vbo);
 	g_gl.enableVertexAttribArray(normalShaderInfo.attLocation[2]);
 	g_gl.vertexAttribPointer(normalShaderInfo.attLocation[2], normalShaderInfo.attStride[2], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ELEMENT_ARRAY_BUFFER, index_ibo);
+	g_gl.bindBuffer(g_gl.ELEMENT_ARRAY_BUFFER, g_plane_index_ibo);
 	for (var dftElemIdx = 0; dftElemIdx < dftElementNum; dftElemIdx++) {
 		for (var levelIdx = 0; levelIdx < currentDftWaveLevel[dftElemIdx]; levelIdx++) {
 			g_gl.bindBuffer(g_gl.ARRAY_BUFFER, dftBarColor_vboArray[levelIdx]);
@@ -668,22 +648,22 @@ function NM_MicDisplay_drawDftBarFrontBody() {
 			m.multiply(vpMatrix, mMatrix, mvpMatrix);
 
 			g_gl.uniformMatrix4fv(normalShaderInfo.uniLocation[0], false, mvpMatrix);
-			g_gl.drawElements(g_gl.TRIANGLES, index.length, g_gl.UNSIGNED_SHORT, 0);
+			g_gl.drawElements(g_gl.TRIANGLES, g_plane_index.length, g_gl.UNSIGNED_SHORT, 0);
 		}
 	}
 }
 
 function NM_MicDisplay_drawCircle() {
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, position_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_position_vbo);
 	g_gl.enableVertexAttribArray(normalShaderInfo.attLocation[0]);
 	g_gl.vertexAttribPointer(normalShaderInfo.attLocation[0], normalShaderInfo.attStride[0], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, color_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_color_vbo);
 	g_gl.enableVertexAttribArray(normalShaderInfo.attLocation[1]);
 	g_gl.vertexAttribPointer(normalShaderInfo.attLocation[1], normalShaderInfo.attStride[1], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, texture_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_texture_vbo);
 	g_gl.enableVertexAttribArray(normalShaderInfo.attLocation[2]);
 	g_gl.vertexAttribPointer(normalShaderInfo.attLocation[2], normalShaderInfo.attStride[2], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ELEMENT_ARRAY_BUFFER, index_ibo);
+	g_gl.bindBuffer(g_gl.ELEMENT_ARRAY_BUFFER, g_plane_index_ibo);
 
 	var rad=(NM_MicDisplay_count - Math.floor(NM_MicDisplay_count / 720.0) * 720.0) * Math.PI/360;
 	var x = Math.cos(rad);
@@ -699,7 +679,7 @@ function NM_MicDisplay_drawCircle() {
 	g_gl.uniform1i(normalShaderInfo.uniLocation[1], 1);
 	g_gl.uniform1i(normalShaderInfo.uniLocation[2], 1);
 	g_gl.uniform4fv(normalShaderInfo.uniLocation[3], circleLightColor);
-	g_gl.drawElements(g_gl.TRIANGLES, index.length, g_gl.UNSIGNED_SHORT, 0);
+	g_gl.drawElements(g_gl.TRIANGLES, g_plane_index.length, g_gl.UNSIGNED_SHORT, 0);
 
 	//魔法陣本体
 	m.translate(mMatrix, [0.0, 0.0, -0.001], mMatrix);
@@ -708,7 +688,7 @@ function NM_MicDisplay_drawCircle() {
 	g_gl.uniform1i(normalShaderInfo.uniLocation[1], 0);
 	g_gl.uniform1i(normalShaderInfo.uniLocation[2], 1);
 	g_gl.uniform4fv(normalShaderInfo.uniLocation[3], circleColor);
-	g_gl.drawElements(g_gl.TRIANGLES, index.length, g_gl.UNSIGNED_SHORT, 0);
+	g_gl.drawElements(g_gl.TRIANGLES, g_plane_index.length, g_gl.UNSIGNED_SHORT, 0);
 }
 
 function NM_MicDisplay_drawWave() {
@@ -733,17 +713,28 @@ function NM_MicDisplay_drawWave() {
 	g_gl.drawElements(g_gl.TRIANGLES, soundDisplayLength * 6, g_gl.UNSIGNED_SHORT, 0);
 }
 
+export function NM_MicDisplay_editCaptureTexture() {
+	virtualBackEffector.applyEffect(NM_MicDisplay_count / 50.0, 3);
+	var effResultTex = virtualBackEffector.getOutputTexture();
+	g_gl.activeTexture(g_gl.TEXTURE7);
+	g_gl.bindTexture(g_gl.TEXTURE_2D, effResultTex);
+	outlineTextureGenerator.generateOutline(20, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0, 7);
+	var outlineResultTex = outlineTextureGenerator.getOutputTexture();
+	g_gl.activeTexture(g_gl.TEXTURE7);
+	g_gl.bindTexture(g_gl.TEXTURE_2D, outlineResultTex);
+}
+
 function NM_MicDisplay_drawCapture() {
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, position_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_position_vbo);
 	g_gl.enableVertexAttribArray(virtualBackShaderInfo.attLocation[0]);
 	g_gl.vertexAttribPointer(virtualBackShaderInfo.attLocation[0], virtualBackShaderInfo.attStride[0], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, color_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_color_vbo);
 	g_gl.enableVertexAttribArray(virtualBackShaderInfo.attLocation[1]);
 	g_gl.vertexAttribPointer(virtualBackShaderInfo.attLocation[1], virtualBackShaderInfo.attStride[1], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, texture_vbo);
+	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_texture_vbo);
 	g_gl.enableVertexAttribArray(virtualBackShaderInfo.attLocation[2]);
 	g_gl.vertexAttribPointer(virtualBackShaderInfo.attLocation[2], virtualBackShaderInfo.attStride[2], g_gl.FLOAT, false, 0, 0);
-	g_gl.bindBuffer(g_gl.ELEMENT_ARRAY_BUFFER, index_ibo);
+	g_gl.bindBuffer(g_gl.ELEMENT_ARRAY_BUFFER, g_plane_index_ibo);
 
 	//virtualBackCanvasSizeはglobalVariables.js内の変数
 	var aspect = 0.0;
@@ -757,9 +748,8 @@ function NM_MicDisplay_drawCapture() {
 	m.scale(mMatrix, [captureWidth, captureWidth * aspect, 1.0], mMatrix);
 	m.multiply(vpMatrix, mMatrix, mvpMatrix);
 	g_gl.uniformMatrix4fv(virtualBackShaderInfo.uniLocation[0], false, mvpMatrix);
-	g_gl.uniform1i(virtualBackShaderInfo.uniLocation[1], 3);
-	g_gl.uniform1f(virtualBackShaderInfo.uniLocation[2], NM_MicDisplay_count / 50.0);
-	g_gl.drawElements(g_gl.TRIANGLES, index.length, g_gl.UNSIGNED_SHORT, 0);
+	g_gl.uniform1i(virtualBackShaderInfo.uniLocation[1], 7);
+	g_gl.drawElements(g_gl.TRIANGLES, g_plane_index.length, g_gl.UNSIGNED_SHORT, 0);
 }
 
 function NM_MicDisplay_drawVirtualShareWindow() {
