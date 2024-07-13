@@ -24,7 +24,7 @@ void main(void) {
 
   vec3 lineColor = mix(lineColorOut, lineColorIn, funcValue) * (1.0 - smpColorMain.a);
 
-  gl_FragColor = smpColorMain + vec4(lineColor, min(funcValue * 4.0, 1.0) * outlineAlpha);
+  gl_FragColor = smpColorMain + vec4(lineColor, min(funcValue * 8.0, 1.0) * outlineAlpha);
 }
 
 `

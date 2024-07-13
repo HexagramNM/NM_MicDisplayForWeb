@@ -444,7 +444,7 @@ export async function NM_MicDisplay_init(micStream) {
 	g_virtualShareWindowTextureObj = new DynamicTexture("virtualShareWindowTexture", 4);
 	var virtualBackTextureSize = document.getElementById("virtualBackTexture").width;
 	virtualBackEffector = new VirtualBackEffector(virtualBackTextureSize, 5);
-	outlineTextureGenerator = new OutlineTextureGenerator(virtualBackTextureSize, 2, 5, 6);
+	outlineTextureGenerator = new OutlineTextureGenerator(virtualBackTextureSize, 4, 5, 6);
 
 	m.lookAt([0.0, 9.0, -18.0], [0,2.0,0], [0, 1, 0], vMatrix);
 	m.perspective(60.0, c.width/c.height, 1.0, 100, pMatrix);
@@ -718,7 +718,7 @@ export function NM_MicDisplay_editCaptureTexture() {
 	var effResultTex = virtualBackEffector.getOutputTexture();
 	g_gl.activeTexture(g_gl.TEXTURE7);
 	g_gl.bindTexture(g_gl.TEXTURE_2D, effResultTex);
-	outlineTextureGenerator.generateOutline(20, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0, 7);
+	outlineTextureGenerator.generateOutline(12, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0, 7);
 	var outlineResultTex = outlineTextureGenerator.getOutputTexture();
 	g_gl.activeTexture(g_gl.TEXTURE7);
 	g_gl.bindTexture(g_gl.TEXTURE_2D, outlineResultTex);
