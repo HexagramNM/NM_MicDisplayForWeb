@@ -173,13 +173,21 @@ async function VirtualBB_createDeviceSelector() {
 async function VirtualBB_onload() {
     document.bgColor=g_backgroundColorCode;
 
-    //許可ダイアログの発生（確認後、各トラックは停止させる）
+    // 許可ダイアログの発生（確認後、各トラックは停止させる）
     try {
-        var mediaStream = await navigator.mediaDevices.getUserMedia({
+        // firefoxだとgetUserMediaでストリームを取得しないと、ラベルを取得できない。
+        // またすぐに停止してしまっても、ラベルを取得できない。
+        await navigator.mediaDevices.getUserMedia({
             audio: true,
             video: true
-        });
-        mediaStream.getTracks().forEach(track => track.stop());
+        }).then((s) => {
+            return new Promise(
+                (resolve, reject) => {
+                    VirtualBB_createDeviceSelector();
+                    setTimeout(() => {resolve(s)}, 1000);
+                }
+            );
+        }).then((s) => {s.getTracks().forEach(track => track.stop());});
     }
     catch(err) {
         //拒否された場合
@@ -187,8 +195,6 @@ async function VirtualBB_onload() {
         document.getElementById("errorPermission").style.display = "";
         return;
     }
-
-    VirtualBB_createDeviceSelector();
 
     document.getElementById("startButton").disabled = false;
     document.getElementById("startButton").addEventListener("click", VirtualBB_startProcess);
