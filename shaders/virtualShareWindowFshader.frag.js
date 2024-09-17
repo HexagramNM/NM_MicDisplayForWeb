@@ -14,9 +14,11 @@ void main(void) {
   float invEdgeRate = 1.0 / 0.02;
   float grayScale = smpColor.r * 0.299 + smpColor.g * 0.587 + smpColor.b * 0.114;
 
-  // grayScale = 1.0 -> r = 0.7, g = 0.8, b = 1.0
-  float u = 0.1169;
-  float v = 0.0958;
+  float maxR = 0.8;
+  float maxG = 0.8;
+  float maxB = 1.0;
+  float u = -0.169 * maxR - 0.331 * maxG + 0.5 * maxB;
+  float v = 0.5 * maxR - 0.419 * maxG - 0.081 * maxB;
   smpColor.r = grayScale + 1.402 * v;
   smpColor.g = grayScale - 0.344 * u - 0.714 * v;
   smpColor.b = grayScale + 1.772 * u;
