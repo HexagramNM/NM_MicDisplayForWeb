@@ -1,6 +1,6 @@
 
 //設定変数
-var blazePoseCanvasSize = 128;
+var blazePoseCanvasSize = 256;
 var virtualBackTextureSize = 1024;
 
 var blazePoseNet = null;
@@ -16,6 +16,9 @@ var virtualBackMaskCanvas = null;
 var virtualBackMaskCanvasCtx = null;
 var virtualBackTextureCanvas = null;
 var virtualBackTextureCanvasCtx = null;
+var virtualBackYuvPixelArray = null;
+var virtualBackHistogram = null;
+const HISTOGRAM_LEVEL = 512;
 
 var mirrorVirtualBack = false;
 var blazePosePromise = null;
@@ -69,6 +72,9 @@ export async function VirtualBack_init(videoStream) {
     }
     g_virtualBackOriginalSize.width = videoTracks[0].getSettings().width;
     g_virtualBackOriginalSize.height = videoTracks[0].getSettings().height;
+    virtualBackYuvPixelArray = new Float32Array(
+        g_virtualBackOriginalSize.width * g_virtualBackOriginalSize.height * 4);
+    virtualBackHistogram = new Uint32Array(HISTOGRAM_LEVEL);
 
     virtualBackVideoComponent = document.getElementById("virtualBackVideo");
     virtualBackVideoComponent.width = g_virtualBackOriginalSize.width;
@@ -110,8 +116,54 @@ export async function VirtualBack_init(videoStream) {
     blazePoseNet = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, detectorConfig);
 }
 
+function histogram_equalization() {
+    var virtualBackIntermediateImageData 
+        = virtualBackIntermediateCanvasCtx.getImageData(0, 0, 
+        g_virtualBackOriginalSize.width, g_virtualBackOriginalSize.height);
+    
+    var sourceImagePixelNum = g_virtualBackOriginalSize.width * g_virtualBackOriginalSize.height;
+    for (var idx = 0; idx < HISTOGRAM_LEVEL; idx++) {
+        virtualBackHistogram[idx] = 0;
+    }
+
+    for (var pidx = 0; pidx < sourceImagePixelNum; pidx++) {
+        const headPos = pidx * 4;
+        const r = virtualBackIntermediateImageData.data[headPos];
+        const g = virtualBackIntermediateImageData.data[headPos + 1];
+        const b = virtualBackIntermediateImageData.data[headPos + 2];
+        const y = 0.299 * r + 0.587 * g + 0.114 * b;
+
+        virtualBackYuvPixelArray[headPos] = y; 
+        virtualBackYuvPixelArray[headPos + 1] = -0.169 * r - 0.331 * g + 0.5 * b;
+        virtualBackYuvPixelArray[headPos + 2] = 0.5 * r - 0.419 * g + 0.081 * b;
+
+        virtualBackHistogram[(y * (HISTOGRAM_LEVEL / 256) | 0)]++;
+    }
+
+    for (var idx = 1; idx < HISTOGRAM_LEVEL; idx++) {
+        virtualBackHistogram[idx] = virtualBackHistogram[idx - 1] + virtualBackHistogram[idx];
+    }
+
+    for (var pidx = 0; pidx < sourceImagePixelNum; pidx++) {
+        const headPos = pidx * 4;
+        const intY = (virtualBackYuvPixelArray[headPos] * (HISTOGRAM_LEVEL / 256) | 0);
+        const newY = 255.0 * virtualBackHistogram[intY] / sourceImagePixelNum;
+        const u = virtualBackYuvPixelArray[headPos + 1];
+        const v = virtualBackYuvPixelArray[headPos + 2];
+
+        virtualBackIntermediateImageData.data[headPos] = newY + 1.402 * v;
+        virtualBackIntermediateImageData.data[headPos + 1] = newY - 0.344 * u - 0.714 * v;
+        virtualBackIntermediateImageData.data[headPos + 2] = newY + 1.772 * u;
+    }
+
+    virtualBackIntermediateCanvasCtx.putImageData(virtualBackIntermediateImageData, 0, 0);
+}
+
 export async function VirtualBack_preprocess() {
     virtualBackIntermediateCanvasCtx.drawImage(virtualBackVideoComponent, 0, 0);
+
+    histogram_equalization();
+
     virtualBackBlazePoseCanvasCtx.drawImage(virtualBackIntermediateCanvas, 0, 0,
         g_virtualBackOriginalSize.width, g_virtualBackOriginalSize.height,
         0, 0, blazePoseCanvasSize, blazePoseCanvasSize);
