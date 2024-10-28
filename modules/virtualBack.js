@@ -135,7 +135,7 @@ function histogram_equalization() {
 
         virtualBackYuvPixelArray[headPos] = y; 
         virtualBackYuvPixelArray[headPos + 1] = -0.169 * r - 0.331 * g + 0.5 * b;
-        virtualBackYuvPixelArray[headPos + 2] = 0.5 * r - 0.419 * g + 0.081 * b;
+        virtualBackYuvPixelArray[headPos + 2] = 0.5 * r - 0.419 * g - 0.081 * b;
 
         virtualBackHistogram[(y * (HISTOGRAM_LEVEL / 256) | 0)]++;
     }
