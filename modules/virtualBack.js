@@ -16,7 +16,7 @@ var virtualBackMaskCanvas = null;
 var virtualBackMaskCanvasCtx = null;
 var virtualBackTextureCanvas = null;
 var virtualBackTextureCanvasCtx = null;
-var virtualBackYuvPixelArray = null;
+var virtualBackPixelYArray = null;
 var virtualBackHistogram = null;
 const HISTOGRAM_LEVEL = 512;
 
@@ -72,10 +72,10 @@ export async function VirtualBack_init(videoStream) {
     }
     g_virtualBackOriginalSize.width = videoTracks[0].getSettings().width;
     g_virtualBackOriginalSize.height = videoTracks[0].getSettings().height;
-    virtualBackYuvPixelArray = new Float32Array(
-        g_virtualBackOriginalSize.width * g_virtualBackOriginalSize.height * 4);
+    virtualBackPixelYArray = new Float32Array(
+        g_virtualBackOriginalSize.width * g_virtualBackOriginalSize.height);
     virtualBackHistogram = new Uint32Array(HISTOGRAM_LEVEL);
-
+    
     virtualBackVideoComponent = document.getElementById("virtualBackVideo");
     virtualBackVideoComponent.width = g_virtualBackOriginalSize.width;
     virtualBackVideoComponent.height = g_virtualBackOriginalSize.height;
@@ -85,7 +85,7 @@ export async function VirtualBack_init(videoStream) {
     virtualBackIntermediateCanvas = document.getElementById("virtualBackIntermediate");
     virtualBackIntermediateCanvas.width = g_virtualBackOriginalSize.width;
     virtualBackIntermediateCanvas.height = g_virtualBackOriginalSize.height;
-    virtualBackIntermediateCanvasCtx = virtualBackIntermediateCanvas.getContext("2d");
+    virtualBackIntermediateCanvasCtx = virtualBackIntermediateCanvas.getContext("2d", {willReadFrequently: true});
 
     virtualBackBlazePoseCanvas = document.getElementById("virtualBackBlazePose");
     virtualBackBlazePoseCanvas.width = blazePoseCanvasSize;
@@ -127,16 +127,12 @@ function histogram_equalization() {
     }
 
     for (var pidx = 0; pidx < sourceImagePixelNum; pidx++) {
-        const headPos = pidx * 4;
-        const r = virtualBackIntermediateImageData.data[headPos];
-        const g = virtualBackIntermediateImageData.data[headPos + 1];
-        const b = virtualBackIntermediateImageData.data[headPos + 2];
+        const imageHeadPos = pidx * 4;
+        const r = virtualBackIntermediateImageData.data[imageHeadPos];
+        const g = virtualBackIntermediateImageData.data[imageHeadPos + 1];
+        const b = virtualBackIntermediateImageData.data[imageHeadPos + 2];
         const y = 0.299 * r + 0.587 * g + 0.114 * b;
-
-        virtualBackYuvPixelArray[headPos] = y; 
-        virtualBackYuvPixelArray[headPos + 1] = -0.169 * r - 0.331 * g + 0.5 * b;
-        virtualBackYuvPixelArray[headPos + 2] = 0.5 * r - 0.419 * g - 0.081 * b;
-
+        virtualBackPixelYArray[pidx] = y; 
         virtualBackHistogram[(y * (HISTOGRAM_LEVEL / 256) | 0)]++;
     }
 
@@ -144,16 +140,24 @@ function histogram_equalization() {
         virtualBackHistogram[idx] = virtualBackHistogram[idx - 1] + virtualBackHistogram[idx];
     }
 
+    const levelDiv256 = HISTOGRAM_LEVEL / 256;
+    const newYCoef = 255.0 / sourceImagePixelNum;
     for (var pidx = 0; pidx < sourceImagePixelNum; pidx++) {
-        const headPos = pidx * 4;
-        const intY = (virtualBackYuvPixelArray[headPos] * (HISTOGRAM_LEVEL / 256) | 0);
-        const newY = 255.0 * virtualBackHistogram[intY] / sourceImagePixelNum;
-        const u = virtualBackYuvPixelArray[headPos + 1];
-        const v = virtualBackYuvPixelArray[headPos + 2];
+        const y = virtualBackPixelYArray[pidx];
+        const intY = (y * levelDiv256 | 0);
+        const newY = newYCoef * virtualBackHistogram[intY];
+        const diffY = newY - y;
 
-        virtualBackIntermediateImageData.data[headPos] = newY + 1.402 * v;
-        virtualBackIntermediateImageData.data[headPos + 1] = newY - 0.344 * u - 0.714 * v;
-        virtualBackIntermediateImageData.data[headPos + 2] = newY + 1.772 * u;
+        const imageHeadPos = pidx * 4;
+
+        const r = virtualBackIntermediateImageData.data[imageHeadPos];
+        virtualBackIntermediateImageData.data[imageHeadPos] = ((r + diffY) | 0);
+
+        const g = virtualBackIntermediateImageData.data[imageHeadPos + 1];
+        virtualBackIntermediateImageData.data[imageHeadPos + 1] = ((g + diffY) | 0);
+
+        const b = virtualBackIntermediateImageData.data[imageHeadPos + 2];
+        virtualBackIntermediateImageData.data[imageHeadPos + 2] += ((b + diffY) | 0);
     }
 
     virtualBackIntermediateCanvasCtx.putImageData(virtualBackIntermediateImageData, 0, 0);
