@@ -515,7 +515,7 @@ function NM_MicDisplay_updateCircleAlpha() {
 	var waveAlphaMaxRate = 150.0;
 	var alphaRate = (currentWaveLevel > waveAlphaMaxRate ? 1.0: currentWaveLevel / waveAlphaMaxRate);
 	circleColor[3] = 0.3 + 0.7 * alphaRate;
-	circleLightColor[3] = 0.7 *alphaRate;
+	circleLightColor[3] = 0.7 * alphaRate;
 }
 
 function NM_MicDisplay_updateDftLevel() {
