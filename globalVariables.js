@@ -65,6 +65,7 @@ function g_createPlaneBuffer() {
 }
 
 var g_texture_max;
+var g_hasVirtualBack = false;
 var g_hasShareWindow = false;
 var g_windowShareMode = false;
 var g_windowShareBackEnable = false;

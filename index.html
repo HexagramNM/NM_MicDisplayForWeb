@@ -51,8 +51,13 @@
     Bキーを押すと、カメラ映像に半透明黒色背景を追加します。再度Bキーを押すことで背景を非表示にします。<br>
     Sキーを押すと、共有画面を非表示にし、カメラ映像を画面いっぱいに映します。再度Sキーを押すと共有画面を再表示します。<br>
     画面を共有している場合、共有画面がカメラ映像の前にも表示されます。<br><br>
-    使用カメラ：<select id="cameraSelect" style="width: 200px"><option value="default">デフォルト</option></select><br>
-    使用マイク：<select id="micSelect" style="width: 200px"><option value="default">デフォルト</option></select><br>
+    使用カメラ：<select id="cameraSelect" style="width: 200px">
+      <option value="default">デフォルト</option>
+      <option value="none">カメラを使用しない</option>
+    </select><br>
+    使用マイク：<select id="micSelect" style="width: 200px">
+      <option value="default">デフォルト</option>
+    </select><br>
     画面共有：<select id="sharedWindowSelect" style="width: 200px">
       <option value="none">しない</option>
       <option value="windowCapture">ウィンドウをキャプチャ</option>

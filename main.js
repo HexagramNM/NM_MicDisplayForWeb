@@ -11,6 +11,7 @@ import {VirtualBack_init,
     VirtualBack_postprocess} from "./modules/virtualBack.js";
 
 var VirtualBB_cameraDeviceLists;
+var VirtualBB_noCamera = false;
 var VirtualBB_selectedCameraDeviceId;
 var VirtualBB_micDeviceLists;
 var VirtualBB_selectedMicDeviceId;
@@ -20,11 +21,13 @@ function VirtualBB_getSelectedDeviceId() {
     var cameraSelectIndex = document.getElementById("cameraSelect").selectedIndex;
     var micSelectIndex = document.getElementById("micSelect").selectedIndex;
 
-    if (cameraSelectIndex <= 0) {
+    VirtualBB_noCamera = false;
+    if (cameraSelectIndex <= 1) {
         VirtualBB_selectedCameraDeviceId = null;
+        VirtualBB_noCamera = (cameraSelectIndex === 1);
     }
     else {
-        VirtualBB_selectedCameraDeviceId = VirtualBB_cameraDeviceLists[cameraSelectIndex - 1].deviceId;
+        VirtualBB_selectedCameraDeviceId = VirtualBB_cameraDeviceLists[cameraSelectIndex - 2].deviceId;
     }
 
     if (micSelectIndex <= 0) {
@@ -36,7 +39,6 @@ function VirtualBB_getSelectedDeviceId() {
 }
 
 async function VirtualBB_prepareSharedWindowStream() {
-    var cameraSelectIndex = document.getElementById("cameraSelect").selectedIndex;
     var sharedWindowSelectIndex = document.getElementById("sharedWindowSelect").selectedIndex;
     var underBackgroundElem = document.getElementById("underBackground");
     var virtualShareWindowVideoElem = document.getElementById("virtualShareWindowVideo");
@@ -45,8 +47,8 @@ async function VirtualBB_prepareSharedWindowStream() {
     try {
         if (sharedWindowSelectIndex <= 0) {
             //画面共有なし
-            hasShareWindow = false;
-            windowShareMode = false;
+            g_hasShareWindow = false;
+            g_windowShareMode = false;
         }
         else if (sharedWindowSelectIndex == 1) {
             //ウィンドウから画面共有
@@ -104,20 +106,30 @@ async function VirtualBB_startProcess() {
         //Webカメラとvideoタグとの関連づけ
         //https://qiita.com/chelcat3/items/02c77b55d080d770530a
         VirtualBB_getSelectedDeviceId();
-        mediaStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                deviceId: VirtualBB_selectedMicDeviceId ? {exact: VirtualBB_selectedMicDeviceId}: undefined
-            },
-            video: {
-                //virtualBackCanvasSizeはglobalVariables.jsからの変数
-                deviceId: VirtualBB_selectedCameraDeviceId ? {exact: VirtualBB_selectedCameraDeviceId}: undefined,
-                width: {ideal: g_virtualBackOriginalSize.width},
-                height: {ideal: g_virtualBackOriginalSize.height}
-            }
-        });
-        //オーディオとビデオの分離
-        videoStream = new MediaStream(mediaStream.getVideoTracks());
-        audioStream = new MediaStream(mediaStream.getAudioTracks());
+        if (VirtualBB_noCamera) {
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    deviceId: VirtualBB_selectedMicDeviceId ? {exact: VirtualBB_selectedMicDeviceId}: undefined
+                }
+            });
+            audioStream = new MediaStream(mediaStream.getAudioTracks());
+        }
+        else {
+            mediaStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    deviceId: VirtualBB_selectedMicDeviceId ? {exact: VirtualBB_selectedMicDeviceId}: undefined
+                },
+                video: {
+                    //virtualBackCanvasSizeはglobalVariables.jsからの変数
+                    deviceId: VirtualBB_selectedCameraDeviceId ? {exact: VirtualBB_selectedCameraDeviceId}: undefined,
+                    width: {ideal: g_virtualBackOriginalSize.width},
+                    height: {ideal: g_virtualBackOriginalSize.height}
+                }
+            });
+            //オーディオとビデオの分離
+            videoStream = new MediaStream(mediaStream.getVideoTracks());
+            audioStream = new MediaStream(mediaStream.getAudioTracks());
+        }
     }
     catch (err) {
         //ユーザに拒否されたなど、カメラ、マイクを取得できなかった場合

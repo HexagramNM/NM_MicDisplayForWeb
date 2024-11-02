@@ -25,6 +25,9 @@ var blazePosePromise = null;
 var processedSegmentResult = null;
 
 export async function VirtualBack_drawTextureCanvas() {
+    if (!g_hasVirtualBack) {
+        return;
+    }
     if (processedSegmentResult == null) {
         return;
     }
@@ -60,16 +63,25 @@ export async function VirtualBack_drawTextureCanvas() {
 }
 
 export function VirtualBack_toggleMirror() {
+    if (!g_hasVirtualBack) {
+        return;
+    }
     mirrorVirtualBack = !mirrorVirtualBack;
 }
 
 export async function VirtualBack_init(videoStream) {
+    if (!videoStream) {
+        return;
+    }
+
     mirrorVirtualBack = false;
 
     var videoTracks = videoStream.getVideoTracks();
     if (videoTracks.length <= 0) {
         return;
     }
+
+    g_hasVirtualBack = true;
     g_virtualBackOriginalSize.width = videoTracks[0].getSettings().width;
     g_virtualBackOriginalSize.height = videoTracks[0].getSettings().height;
     virtualBackPixelYArray = new Float32Array(
@@ -164,6 +176,10 @@ function histogram_equalization() {
 }
 
 export async function VirtualBack_preprocess() {
+    if (!g_hasVirtualBack) {
+        return;
+    }
+    
     virtualBackIntermediateCanvasCtx.drawImage(virtualBackVideoComponent, 0, 0);
 
     histogram_equalization();
@@ -176,6 +192,10 @@ export async function VirtualBack_preprocess() {
 }
 
 export async function VirtualBack_postprocess() {
+    if (!g_hasVirtualBack) {
+        return;
+    }
+
     processedSegmentResult = await blazePosePromise;
 
     virtualBackPreviousFrameCanvasCtx.drawImage(virtualBackIntermediateCanvas, 0, 0);

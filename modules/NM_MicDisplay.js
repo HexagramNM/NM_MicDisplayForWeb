@@ -714,6 +714,9 @@ function NM_MicDisplay_drawWave() {
 }
 
 export function NM_MicDisplay_editCaptureTexture() {
+	if (!g_hasVirtualBack) {
+		return;
+	}
 	virtualBackEffector.applyEffect(NM_MicDisplay_count / 50.0, 3);
 	var effResultTex = virtualBackEffector.getOutputTexture();
 	g_gl.activeTexture(g_gl.TEXTURE7);
@@ -725,6 +728,9 @@ export function NM_MicDisplay_editCaptureTexture() {
 }
 
 function NM_MicDisplay_drawCapture() {
+	if (!g_hasVirtualBack) {
+		return;
+	}
 	g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_position_vbo);
 	g_gl.enableVertexAttribArray(virtualBackShaderInfo.attLocation[0]);
 	g_gl.vertexAttribPointer(virtualBackShaderInfo.attLocation[0], virtualBackShaderInfo.attStride[0], g_gl.FLOAT, false, 0, 0);
