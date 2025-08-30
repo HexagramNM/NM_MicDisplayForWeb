@@ -434,6 +434,17 @@ export async function NM_MicDisplay_init(micStream) {
 	g_gl.enable(g_gl.DEPTH_TEST);
 	g_gl.depthFunc(g_gl.LEQUAL);
 
+	// Texture unit 一覧
+	// 0: 魔法陣本体
+	// 1: 魔法陣発光
+	// 2: 魔法陣波動
+	// 3: カメラ映像
+	// 4: 画面共有映像
+	// 5: 中間用テクスチャ1
+	// 6: 中間用テクスチャ2
+	// 7: ヒストグラム平滑化用の累積分布関数（CDF）用テクスチャ
+	// 8: エフェクト、枠線適用済みカメラ映像テクスチャ
+
 	create_texture('image/redCircle.png?'+new Date().getTime(), 0);
 	create_texture('image/redCircleLight.png?'+new Date().getTime(), 1);
 	create_texture('image/redCircleWave.png?'+new Date().getTime(), 2);
@@ -443,7 +454,7 @@ export async function NM_MicDisplay_init(micStream) {
 
 	g_virtualShareWindowTextureObj = new DynamicTexture("virtualShareWindowTexture", 4);
 	var virtualBackTextureSize = document.getElementById("virtualBackTexture").width;
-	virtualBackEffector = new VirtualBackEffector(virtualBackTextureSize, 5);
+	virtualBackEffector = new VirtualBackEffector(virtualBackTextureSize, 5, 7);
 	outlineTextureGenerator = new OutlineTextureGenerator(virtualBackTextureSize, 4, 5, 6);
 
 	m.lookAt([0.0, 9.0, -18.0], [0,2.0,0], [0, 1, 0], vMatrix);
@@ -717,13 +728,14 @@ export function NM_MicDisplay_editCaptureTexture() {
 	if (!g_hasVirtualBack) {
 		return;
 	}
+	virtualBackEffector.updateCdf();
 	virtualBackEffector.applyEffect(NM_MicDisplay_count / 50.0, 3);
 	var effResultTex = virtualBackEffector.getOutputTexture();
-	g_gl.activeTexture(g_gl.TEXTURE7);
+	g_gl.activeTexture(g_gl.TEXTURE8);
 	g_gl.bindTexture(g_gl.TEXTURE_2D, effResultTex);
-	outlineTextureGenerator.generateOutline(12, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0, 7);
+	outlineTextureGenerator.generateOutline(12, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0, 8);
 	var outlineResultTex = outlineTextureGenerator.getOutputTexture();
-	g_gl.activeTexture(g_gl.TEXTURE7);
+	g_gl.activeTexture(g_gl.TEXTURE8);
 	g_gl.bindTexture(g_gl.TEXTURE_2D, outlineResultTex);
 }
 
@@ -754,7 +766,7 @@ function NM_MicDisplay_drawCapture() {
 	m.scale(mMatrix, [captureWidth, captureWidth * aspect, 1.0], mMatrix);
 	m.multiply(vpMatrix, mMatrix, mvpMatrix);
 	g_gl.uniformMatrix4fv(virtualBackShaderInfo.uniLocation[0], false, mvpMatrix);
-	g_gl.uniform1i(virtualBackShaderInfo.uniLocation[1], 7);
+	g_gl.uniform1i(virtualBackShaderInfo.uniLocation[1], 8);
 	g_gl.drawElements(g_gl.TRIANGLES, g_plane_index.length, g_gl.UNSIGNED_SHORT, 0);
 }
 

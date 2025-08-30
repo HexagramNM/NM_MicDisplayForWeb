@@ -215,12 +215,10 @@ async function VirtualBB_onload() {
 window.addEventListener("load", VirtualBB_onload);
 
 async function VirtualBB_main() {
-    await VirtualBack_preprocess();
+    VirtualBack_preprocess();
     await VirtualBack_drawTextureCanvas();
     NM_MicDisplay_editCaptureTexture();
     SharedWindow_main();
     NM_MicDisplay_main();
     await VirtualBack_postprocess();
-    SharedWindow_main();
-    NM_MicDisplay_main();
 }

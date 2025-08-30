@@ -6,6 +6,9 @@ var g_blazePoseModelType = "lite";
 var g_virtualBackOriginalSize = {width: 960, height: 720};
 var g_virtualShareWindowTrimmedSize = {width: 1920, height: 1080};
 
+var g_virtualBackPreviousBlazePoseCanvas = null;
+var g_virtualBackPreviousBlazePoseCanvasCtx = null;
+
 var g_gl;
 var g_plane_index = [
 	0, 2, 1,

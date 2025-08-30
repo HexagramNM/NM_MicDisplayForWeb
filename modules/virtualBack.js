@@ -16,9 +16,6 @@ var virtualBackMaskCanvas = null;
 var virtualBackMaskCanvasCtx = null;
 var virtualBackTextureCanvas = null;
 var virtualBackTextureCanvasCtx = null;
-var virtualBackPixelYArray = null;
-var virtualBackHistogram = null;
-const HISTOGRAM_LEVEL = 512;
 
 var mirrorVirtualBack = false;
 var blazePosePromise = null;
@@ -84,9 +81,6 @@ export async function VirtualBack_init(videoStream) {
     g_hasVirtualBack = true;
     g_virtualBackOriginalSize.width = videoTracks[0].getSettings().width;
     g_virtualBackOriginalSize.height = videoTracks[0].getSettings().height;
-    virtualBackPixelYArray = new Float32Array(
-        g_virtualBackOriginalSize.width * g_virtualBackOriginalSize.height);
-    virtualBackHistogram = new Uint32Array(HISTOGRAM_LEVEL);
     
     virtualBackVideoComponent = document.getElementById("virtualBackVideo");
     virtualBackVideoComponent.width = g_virtualBackOriginalSize.width;
@@ -103,6 +97,11 @@ export async function VirtualBack_init(videoStream) {
     virtualBackBlazePoseCanvas.width = blazePoseCanvasSize;
     virtualBackBlazePoseCanvas.height = blazePoseCanvasSize;
     virtualBackBlazePoseCanvasCtx = virtualBackBlazePoseCanvas.getContext("2d");
+
+    g_virtualBackPreviousBlazePoseCanvas = document.getElementById("virtualBackPreviousBlazePose");
+    g_virtualBackPreviousBlazePoseCanvas.width = blazePoseCanvasSize;
+    g_virtualBackPreviousBlazePoseCanvas.height = blazePoseCanvasSize;
+    g_virtualBackPreviousBlazePoseCanvasCtx = g_virtualBackPreviousBlazePoseCanvas.getContext("2d", {willReadFrequently: true});
 
     virtualBackPreviousFrameCanvas = document.getElementById("virtualBackPreviousFrame");
     virtualBackPreviousFrameCanvas.width = g_virtualBackOriginalSize.width;
@@ -128,61 +127,12 @@ export async function VirtualBack_init(videoStream) {
     blazePoseNet = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, detectorConfig);
 }
 
-function histogram_equalization() {
-    var virtualBackIntermediateImageData 
-        = virtualBackIntermediateCanvasCtx.getImageData(0, 0, 
-        g_virtualBackOriginalSize.width, g_virtualBackOriginalSize.height);
-    
-    var sourceImagePixelNum = g_virtualBackOriginalSize.width * g_virtualBackOriginalSize.height;
-    for (var idx = 0; idx < HISTOGRAM_LEVEL; idx++) {
-        virtualBackHistogram[idx] = 0;
-    }
-
-    for (var pidx = 0; pidx < sourceImagePixelNum; pidx++) {
-        const imageHeadPos = pidx * 4;
-        const r = virtualBackIntermediateImageData.data[imageHeadPos];
-        const g = virtualBackIntermediateImageData.data[imageHeadPos + 1];
-        const b = virtualBackIntermediateImageData.data[imageHeadPos + 2];
-        const y = 0.299 * r + 0.587 * g + 0.114 * b;
-        virtualBackPixelYArray[pidx] = y; 
-        virtualBackHistogram[(y * (HISTOGRAM_LEVEL / 256) | 0)]++;
-    }
-
-    for (var idx = 1; idx < HISTOGRAM_LEVEL; idx++) {
-        virtualBackHistogram[idx] = virtualBackHistogram[idx - 1] + virtualBackHistogram[idx];
-    }
-
-    const levelDiv256 = HISTOGRAM_LEVEL / 256;
-    const newYCoef = 255.0 / sourceImagePixelNum;
-    for (var pidx = 0; pidx < sourceImagePixelNum; pidx++) {
-        const y = virtualBackPixelYArray[pidx];
-        const intY = (y * levelDiv256 | 0);
-        const newY = newYCoef * virtualBackHistogram[intY];
-        const diffY = newY - y;
-
-        const imageHeadPos = pidx * 4;
-
-        const r = virtualBackIntermediateImageData.data[imageHeadPos];
-        virtualBackIntermediateImageData.data[imageHeadPos] = ((r + diffY) | 0);
-
-        const g = virtualBackIntermediateImageData.data[imageHeadPos + 1];
-        virtualBackIntermediateImageData.data[imageHeadPos + 1] = ((g + diffY) | 0);
-
-        const b = virtualBackIntermediateImageData.data[imageHeadPos + 2];
-        virtualBackIntermediateImageData.data[imageHeadPos + 2] += ((b + diffY) | 0);
-    }
-
-    virtualBackIntermediateCanvasCtx.putImageData(virtualBackIntermediateImageData, 0, 0);
-}
-
-export async function VirtualBack_preprocess() {
+export function VirtualBack_preprocess() {
     if (!g_hasVirtualBack) {
         return;
     }
     
     virtualBackIntermediateCanvasCtx.drawImage(virtualBackVideoComponent, 0, 0);
-
-    histogram_equalization();
 
     virtualBackBlazePoseCanvasCtx.drawImage(virtualBackIntermediateCanvas, 0, 0,
         g_virtualBackOriginalSize.width, g_virtualBackOriginalSize.height,
@@ -199,4 +149,5 @@ export async function VirtualBack_postprocess() {
     processedSegmentResult = await blazePosePromise;
 
     virtualBackPreviousFrameCanvasCtx.drawImage(virtualBackIntermediateCanvas, 0, 0);
+    g_virtualBackPreviousBlazePoseCanvasCtx.drawImage(virtualBackBlazePoseCanvas, 0, 0);
 }
