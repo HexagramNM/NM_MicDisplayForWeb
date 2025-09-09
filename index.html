@@ -51,6 +51,9 @@
     Bキーを押すと、カメラ映像に半透明黒色背景を追加します。再度Bキーを押すことで背景を非表示にします。<br>
     Sキーを押すと、共有画面を非表示にし、カメラ映像を画面いっぱいに映します。再度Sキーを押すと共有画面を再表示します。<br>
     画面を共有している場合、共有画面がカメラ映像の前にも表示されます。<br><br>
+    ・音声ループバックを有効にすると音声がブラウザから再生されます。<br>
+    「画面共有と同じ」を選択し、画面共有のデバイス、ウィンドウキャプチャに音声がある場合は、その音声を再生します。<br>
+    （ブラウザの制約でウィンドウキャプチャで別ウィンドウをキャプチャする場合は音声を再生できません。）<br><br>
     使用カメラ：<select id="cameraSelect" style="width: 200px">
       <option value="default">デフォルト</option>
       <option value="none">カメラを使用しない</option>
@@ -61,6 +64,10 @@
     画面共有：<select id="sharedWindowSelect" style="width: 200px">
       <option value="none">しない</option>
       <option value="windowCapture">ウィンドウをキャプチャ</option>
+    </select><br>
+    音声ループバック：<select id="loopBackAudioSelect" style="width: 200px">
+      <option value="none">しない</option>
+      <option value="same">画面共有と同じ音声</option>
     </select><br>
     BlazePoseモデル：<select id="blazePoseModelType" style="width: 200px">
       <option value="full">full (標準)</option>
@@ -83,6 +90,7 @@
       辺をドラッグしてください。（Tキーで確定、Rキーで枠のリセット）
     </div>
     <video id="virtualBackVideo" style="display: none"></video>
+    <audio id="loopBackAudio" style="display: none"></audio>
     <canvas id="virtualBackIntermediate" style="display: none"></canvas>
     <canvas id="virtualBackBlazePose" style="display: none"></canvas>
     <canvas id="virtualBackPreviousFrame" style="display: none"></canvas>

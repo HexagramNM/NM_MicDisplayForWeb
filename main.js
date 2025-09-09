@@ -40,31 +40,89 @@ function VirtualBB_getSelectedDeviceId() {
 
 async function VirtualBB_prepareSharedWindowStream() {
     var sharedWindowSelectIndex = document.getElementById("sharedWindowSelect").selectedIndex;
+    var loopBackAudioSelectIndex = document.getElementById("loopBackAudioSelect").selectedIndex;
     var underBackgroundElem = document.getElementById("underBackground");
     var virtualShareWindowVideoElem = document.getElementById("virtualShareWindowVideo");
-    var screenStream = null;
+    var loopBackAudioElem = document.getElementById("loopBackAudio");
+    var tempStream = null;
+    var videoStream = null;
+    var audioStream = null;
 
     try {
         if (sharedWindowSelectIndex <= 0) {
             //画面共有なし
             g_hasShareWindow = false;
             g_windowShareMode = false;
+            if (loopBackAudioSelectIndex >= 2) {
+                var loopBackAudioDeviceId = VirtualBB_micDeviceLists[loopBackAudioSelectIndex - 2].deviceId
+                tempStream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        deviceId: loopBackAudioDeviceId ? {exact: loopBackAudioDeviceId}: undefined,
+                        noiseSuppression: false,
+                        echoCancellation: false,
+                        autoGainControl: false
+                    }
+                });
+
+                audioStream = new MediaStream(tempStream.getAudioTracks());
+            }
         }
         else if (sharedWindowSelectIndex == 1) {
             //ウィンドウから画面共有
-            screenStream = await navigator.mediaDevices.getDisplayMedia({
-                audio: false,
+            tempStream = await navigator.mediaDevices.getDisplayMedia({
+                audio: (loopBackAudioSelectIndex === 1) ? true: false,
                 video: {
                     cursor: "never",
                     width: {max: 1920},
                     height: {max: 1080}
                 }
             });
+
+            videoStream = new MediaStream(tempStream.getVideoTracks());
+            if (loopBackAudioSelectIndex === 1) {
+                audioStream = new MediaStream(tempStream.getAudioTracks());
+            }
+            else if (loopBackAudioSelectIndex >= 2) {
+                var loopBackAudioDeviceId = VirtualBB_micDeviceLists[loopBackAudioSelectIndex - 2].deviceId
+                tempStream =  await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        deviceId: loopBackAudioDeviceId ? {exact: loopBackAudioDeviceId}: undefined,
+                        noiseSuppression: false,
+                        echoCancellation: false,
+                        autoGainControl: false
+                    }
+                });
+                audioStream = new MediaStream(tempStream.getAudioTracks());
+            }
         }
         else {
             var sharedWindowDeviceId = VirtualBB_cameraDeviceLists[sharedWindowSelectIndex - 2].deviceId;
-            screenStream = await navigator.mediaDevices.getUserMedia({
-                audio: false,
+            var audioOptions = false;
+            if (loopBackAudioSelectIndex === 1) {
+                var deviceGroupId = VirtualBB_cameraDeviceLists[sharedWindowSelectIndex - 2].groupId;
+                if (deviceGroupId) {
+                    audioOptions = {
+                        groupId: {exact: deviceGroupId},
+                        noiseSuppression: false,
+                        echoCancellation: false,
+                        autoGainControl: false
+                    };
+                }
+            }
+            else if (loopBackAudioSelectIndex >= 2) {
+                var loopBackAudioDeviceId = VirtualBB_micDeviceLists[loopBackAudioSelectIndex - 2].deviceId;
+                if (loopBackAudioDeviceId) {
+                    audioOptions = {
+                        deviceId: {exact: loopBackAudioDeviceId},
+                        noiseSuppression: false,
+                        echoCancellation: false,
+                        autoGainControl: false
+                    };
+                }
+            }
+
+            tempStream = await navigator.mediaDevices.getUserMedia({
+                audio: audioOptions,
                 video: {
                     deviceId: sharedWindowDeviceId ? {exact: sharedWindowDeviceId}: undefined,
                     width: {ideal: g_virtualShareWindowTrimmedSize.width, max: 1920},
@@ -72,15 +130,25 @@ async function VirtualBB_prepareSharedWindowStream() {
                     frameRate: {ideal: 60, min: 30}
                 }
             });
+
+            videoStream = new MediaStream(tempStream.getVideoTracks());
+            if (audioOptions) {
+                audioStream = new MediaStream(tempStream.getAudioTracks());
+            }
         }
 
-        if (screenStream != null) {
+        if (videoStream != null) {
             underBackgroundElem.autoplay = true;
-            underBackgroundElem.srcObject = screenStream;
+            underBackgroundElem.srcObject = videoStream;
             virtualShareWindowVideoElem.autoplay = true;
-            virtualShareWindowVideoElem.srcObject = screenStream;
+            virtualShareWindowVideoElem.srcObject = videoStream;
             g_hasShareWindow = true;
             g_windowShareMode = true;
+        }
+
+        if (audioStream != null) {
+            loopBackAudioElem.autoplay = true;
+            loopBackAudioElem.srcObject = audioStream; 
         }
     }
     catch(err) {
@@ -154,7 +222,8 @@ async function VirtualBB_createDeviceSelector() {
         .map((device) => {
             return {
                 name: device.label,
-                deviceId: device.deviceId
+                deviceId: device.deviceId,
+                groupId: device.groupId
             };
         });
 
@@ -171,7 +240,8 @@ async function VirtualBB_createDeviceSelector() {
         .map((device) => {
             return {
                 name: device.label,
-                deviceId: device.deviceId
+                deviceId: device.deviceId,
+                groupId: device.groupId
             };
         });
     for (var idx = 0; idx < VirtualBB_micDeviceLists.length; idx++) {
@@ -179,6 +249,7 @@ async function VirtualBB_createDeviceSelector() {
         optionElem.text = VirtualBB_micDeviceLists[idx].name;
         optionElem.value = VirtualBB_micDeviceLists[idx].name;
         document.getElementById("micSelect").appendChild(optionElem);
+        document.getElementById("loopBackAudioSelect").appendChild(optionElem.cloneNode(true));
     }
 }
 
