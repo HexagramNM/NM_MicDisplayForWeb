@@ -166,6 +166,11 @@ function VirtualBB_toggleMirror() {
 async function VirtualBB_startProcess() {
     document.oncontextmenu = VirtualBB_toggleMirror;
     document.getElementById("easyInst").style.display = "none";
+    VirtualBB_saveOption("cameraSelect");
+    VirtualBB_saveOption("micSelect");
+    VirtualBB_saveOption("sharedWindowSelect");
+    VirtualBB_saveOption("loopBackAudioSelect");
+    VirtualBB_saveOption("blazePoseModelType");
 
     var mediaStream = null;
     var videoStream = null;
@@ -214,6 +219,27 @@ async function VirtualBB_startProcess() {
     SharedWindow_init();
     await NM_MicDisplay_init(audioStream);
     VirtualBB_mainTimer = setInterval(VirtualBB_main, 1000 / 30);
+}
+
+function VirtualBB_saveOption(selectElementId) {
+    var selectElem = document.getElementById(selectElementId);
+    var saveValue = selectElem.options[selectElem.selectedIndex].value;
+    localStorage.setItem(selectElementId, saveValue);
+}
+
+function VirtualBB_loadOption(selectElementId) {
+    var selectElem = document.getElementById(selectElementId);
+    var loadValue = localStorage.getItem(selectElementId);
+    if (loadValue == null) {
+        return;
+    }
+
+    for (var idx = 0; idx < selectElem.options.length; idx++) {
+        if (selectElem.options[idx].value === loadValue) {
+            selectElem.selectedIndex = idx;
+            break;
+        }
+    }
 }
 
 async function VirtualBB_createDeviceSelector() {
@@ -278,6 +304,13 @@ async function VirtualBB_onload() {
         document.getElementById("errorPermission").style.display = "";
         return;
     }
+
+    // 前回の設定の復元
+    VirtualBB_loadOption("cameraSelect");
+    VirtualBB_loadOption("micSelect");
+    VirtualBB_loadOption("sharedWindowSelect");
+    VirtualBB_loadOption("loopBackAudioSelect");
+    VirtualBB_loadOption("blazePoseModelType");
 
     document.getElementById("startButton").disabled = false;
     document.getElementById("startButton").addEventListener("click", VirtualBB_startProcess);
