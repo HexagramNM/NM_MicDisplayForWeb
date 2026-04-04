@@ -1,18 +1,14 @@
 export default `
 
 #define PI 3.141592
-#define HISTOGRAM_NUM 256
 
 precision mediump float;
 uniform sampler2D texture;
 uniform float time;
-uniform sampler2D cdf;
 varying vec2 vTextureCoord;
 void main(void) {
   vec4 smpColor = texture2D(texture, vTextureCoord);
   float grayScale = smpColor.r * 0.299 + smpColor.g * 0.587 + smpColor.b * 0.114;
-  float newGrayScale = clamp(texture2D(cdf, vec2(grayScale, 0.0)).r, 0.0, 1.0);
-
   float u = -0.169 * smpColor.r - 0.331 * smpColor.g + 0.5 * smpColor.b;
   float v = 0.5 * smpColor.r - 0.419 * smpColor.g - 0.081 * smpColor.b;
   
@@ -26,9 +22,9 @@ void main(void) {
   float mixU = weight * targetU + (1.0 - weight) * u;
   float mixV = weight * targetV + (1.0 - weight) * v;
 
-  smpColor.r = clamp(newGrayScale + 1.402 * mixV, 0.0, 1.0);
-  smpColor.g = clamp(newGrayScale - 0.344 * mixU - 0.714 * mixV, 0.0, 1.0);
-  smpColor.b = clamp(newGrayScale + 1.772 * mixU, 0.0, 1.0);
+  smpColor.r = clamp(grayScale + 1.402 * mixV, 0.0, 1.0);
+  smpColor.g = clamp(grayScale - 0.344 * mixU - 0.714 * mixV, 0.0, 1.0);
+  smpColor.b = clamp(grayScale + 1.772 * mixU, 0.0, 1.0);
   smpColor.a = step(0.5, smpColor.a);
 
   float sinValue = sin((vTextureCoord.y + time * 0.01) * 50.0 * PI);

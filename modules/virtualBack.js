@@ -1,153 +1,66 @@
+import {
+    CanvasTexture,
+    PlaneBuffer
+} from "./createWebGLObj.js";
+import {matIV} from "./minMatrix.js";
+import { OutlineTextureGenerator } from "./outlineTextureGenerator.js";
+import {VirtualBackEffector} from "./virtualBackEffector.js";
 
-//設定変数
-var blazePoseCanvasSize = 256;
-var virtualBackTextureSize = 1024;
+export class VirtualBack {
+    constructor(gl, width, height, virtualBackShaderInfo) {
+        this.gl = gl;
+        this.virtualBackShaderInfo = virtualBackShaderInfo;
+        this.virtualBackTexture = new CanvasTexture(this.gl, "virtualBackTexture");
+        const virtualBackTextureSize = document.getElementById("virtualBackTexture").width;
 
-var blazePoseNet = null;
+        this.mMatrix = VirtualBack.mat.identity(VirtualBack.mat.create());
+        this.mvpMatrix = VirtualBack.mat.identity(VirtualBack.mat.create());
+        
+        this.aspect = 0.0;
+        if (width > 0.0) {
+            this.aspect = height / width;
+        }
 
-var virtualBackVideoComponent = null;
-var virtualBackIntermediateCanvas = null;
-var virtualBackIntermediateCanvasCtx = null;
-var virtualBackBlazePoseCanvas = null;
-var virtualBackBlazePoseCanvasCtx = null;
-var virtualBackPreviousFrameCanvas = null;
-var virtualBackPreviousFrameCanvasCtx = null;
-var virtualBackMaskCanvas = null;
-var virtualBackMaskCanvasCtx = null;
-var virtualBackTextureCanvas = null;
-var virtualBackTextureCanvasCtx = null;
+        this.effector = new VirtualBackEffector(
+            this.gl, this.virtualBackTexture.texId, virtualBackTextureSize);
 
-var mirrorVirtualBack = false;
-var blazePosePromise = null;
-var processedSegmentResult = null;
-
-export async function VirtualBack_drawTextureCanvas() {
-    if (!g_hasVirtualBack) {
-        return;
-    }
-    if (processedSegmentResult == null) {
-        return;
-    }
-    virtualBackTextureCanvasCtx.setTransform(1, 0, 0, 1, 0, 0);
-    if (mirrorVirtualBack) {
-        virtualBackTextureCanvasCtx.scale(-1, 1);
-        virtualBackTextureCanvasCtx.translate(-virtualBackTextureSize, 0);
+        this.outlineTexture = new OutlineTextureGenerator(
+            this.gl, this.effector.getOutputTexture(), virtualBackTextureSize, 4.0);
     }
 
-    if (processedSegmentResult.length > 0) {
-        virtualBackTextureCanvasCtx.globalCompositeOperation = "source-over";
-        virtualBackTextureCanvasCtx.drawImage(virtualBackPreviousFrameCanvas, 0, 0,
-            virtualBackIntermediateCanvas.width, virtualBackIntermediateCanvas.height,
-            0, 0, virtualBackTextureSize, virtualBackTextureSize);
-
-        var maskImage = await processedSegmentResult[0].segmentation.mask.toImageData();
-        virtualBackMaskCanvasCtx.putImageData(maskImage, 0, 0);
-        virtualBackTextureCanvasCtx.globalCompositeOperation = "destination-in";
-        virtualBackTextureCanvasCtx.drawImage(virtualBackMaskCanvas, 0, 0,
-            blazePoseCanvasSize, blazePoseCanvasSize,
-            0, 0, virtualBackTextureSize, virtualBackTextureSize);
-    }
-    else {
-        virtualBackTextureCanvasCtx.globalCompositeOperation = "destination-out";
-        virtualBackTextureCanvasCtx.beginPath();
-        virtualBackTextureCanvasCtx.fillStyle = "rgba(0, 0, 0, 1)";
-        virtualBackTextureCanvasCtx.fillRect(0, 0, virtualBackTextureSize, virtualBackTextureSize);
+    update() {
+        this.virtualBackTexture.redraw();
+        this.effector.applyEffect();
+        this.outlineTexture.generateOutline(12, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0);
     }
 
-    if (g_virtualBackTextureObj != null) {
-        g_virtualBackTextureObj.redraw();
+    draw(vpMatrix) {
+        this.gl.useProgram(this.virtualBackShaderInfo.program);
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, PlaneBuffer.positionVbo);
+        this.virtualBackShaderInfo.enableAttribute(0);
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, PlaneBuffer.colorVbo);
+        this.virtualBackShaderInfo.enableAttribute(1);
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, PlaneBuffer.planeTextureVbo);
+        this.virtualBackShaderInfo.enableAttribute(2);
+        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, PlaneBuffer.ibo);
+
+        this.gl.activeTexture(this.gl.TEXTURE0);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.outlineTexture.getOutputTexture());
+
+        VirtualBack.mat.identity(this.mMatrix);
+        VirtualBack.mat.translate(this.mMatrix, [0.0, 5.5, -6.0], this.mMatrix);
+        VirtualBack.mat.rotate(this.mMatrix, Math.PI, [0.0, 1.0, 0.0], this.mMatrix);
+        VirtualBack.mat.scale(this.mMatrix, [VirtualBack.captureWidth, VirtualBack.captureWidth * this.aspect, 1.0], this.mMatrix);
+        VirtualBack.mat.multiply(vpMatrix, this.mMatrix, this.mvpMatrix);
+        this.gl.uniformMatrix4fv(this.virtualBackShaderInfo.uniLocation[0], false, this.mvpMatrix);
+        this.gl.uniform1i(this.virtualBackShaderInfo.uniLocation[1], 0);
+        this.gl.drawElements(this.gl.TRIANGLES, PlaneBuffer.iboLength, this.gl.UNSIGNED_SHORT, 0);
+
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
+        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
     }
 }
 
-export function VirtualBack_toggleMirror() {
-    if (!g_hasVirtualBack) {
-        return;
-    }
-    mirrorVirtualBack = !mirrorVirtualBack;
-}
-
-export async function VirtualBack_init(videoStream) {
-    if (!videoStream) {
-        return;
-    }
-
-    mirrorVirtualBack = false;
-
-    var videoTracks = videoStream.getVideoTracks();
-    if (videoTracks.length <= 0) {
-        return;
-    }
-
-    g_hasVirtualBack = true;
-    g_virtualBackOriginalSize.width = videoTracks[0].getSettings().width;
-    g_virtualBackOriginalSize.height = videoTracks[0].getSettings().height;
-    
-    virtualBackVideoComponent = document.getElementById("virtualBackVideo");
-    virtualBackVideoComponent.width = g_virtualBackOriginalSize.width;
-    virtualBackVideoComponent.height = g_virtualBackOriginalSize.height;
-    virtualBackVideoComponent.autoplay = true;
-    virtualBackVideoComponent.srcObject = videoStream;
-
-    virtualBackIntermediateCanvas = document.getElementById("virtualBackIntermediate");
-    virtualBackIntermediateCanvas.width = g_virtualBackOriginalSize.width;
-    virtualBackIntermediateCanvas.height = g_virtualBackOriginalSize.height;
-    virtualBackIntermediateCanvasCtx = virtualBackIntermediateCanvas.getContext("2d", {willReadFrequently: true});
-
-    virtualBackBlazePoseCanvas = document.getElementById("virtualBackBlazePose");
-    virtualBackBlazePoseCanvas.width = blazePoseCanvasSize;
-    virtualBackBlazePoseCanvas.height = blazePoseCanvasSize;
-    virtualBackBlazePoseCanvasCtx = virtualBackBlazePoseCanvas.getContext("2d");
-
-    g_virtualBackPreviousBlazePoseCanvas = document.getElementById("virtualBackPreviousBlazePose");
-    g_virtualBackPreviousBlazePoseCanvas.width = blazePoseCanvasSize;
-    g_virtualBackPreviousBlazePoseCanvas.height = blazePoseCanvasSize;
-    g_virtualBackPreviousBlazePoseCanvasCtx = g_virtualBackPreviousBlazePoseCanvas.getContext("2d", {willReadFrequently: true});
-
-    virtualBackPreviousFrameCanvas = document.getElementById("virtualBackPreviousFrame");
-    virtualBackPreviousFrameCanvas.width = g_virtualBackOriginalSize.width;
-    virtualBackPreviousFrameCanvas.height = g_virtualBackOriginalSize.height;
-    virtualBackPreviousFrameCanvasCtx = virtualBackPreviousFrameCanvas.getContext("2d");
-
-    virtualBackMaskCanvas = document.getElementById("virtualBackMask");
-    virtualBackMaskCanvas.width = blazePoseCanvasSize;
-    virtualBackMaskCanvas.height = blazePoseCanvasSize;
-    virtualBackMaskCanvasCtx = virtualBackMaskCanvas.getContext("2d");
-
-    virtualBackTextureCanvas = document.getElementById("virtualBackTexture");
-    virtualBackTextureCanvas.width = virtualBackTextureSize;
-    virtualBackTextureCanvas.height = virtualBackTextureSize;
-    virtualBackTextureCanvasCtx = virtualBackTextureCanvas.getContext("2d");
-
-    const detectorConfig = {
-        runtime: "mediapipe",
-        enableSegmentation: true,
-        modelType: g_blazePoseModelType,
-        solutionPath: "https://cdn.jsdelivr.net/npm/@mediapipe/pose"
-    };
-    blazePoseNet = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, detectorConfig);
-}
-
-export function VirtualBack_preprocess() {
-    if (!g_hasVirtualBack) {
-        return;
-    }
-    
-    virtualBackIntermediateCanvasCtx.drawImage(virtualBackVideoComponent, 0, 0);
-
-    virtualBackBlazePoseCanvasCtx.drawImage(virtualBackIntermediateCanvas, 0, 0,
-        g_virtualBackOriginalSize.width, g_virtualBackOriginalSize.height,
-        0, 0, blazePoseCanvasSize, blazePoseCanvasSize);
-
-    blazePosePromise = blazePoseNet.estimatePoses(virtualBackBlazePoseCanvas);
-}
-
-export async function VirtualBack_postprocess() {
-    if (!g_hasVirtualBack) {
-        return;
-    }
-
-    processedSegmentResult = await blazePosePromise;
-
-    virtualBackPreviousFrameCanvasCtx.drawImage(virtualBackIntermediateCanvas, 0, 0);
-    g_virtualBackPreviousBlazePoseCanvasCtx.drawImage(virtualBackBlazePoseCanvas, 0, 0);
-}
+VirtualBack.mat = new matIV();
+VirtualBack.captureWidth = 7.0;

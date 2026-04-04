@@ -1,241 +1,158 @@
+import {
+	CanvasTexture,
+	createVbo,
+	createIbo,
+} from "./createWebGLObj.js";
+import {matIV} from "./minMatrix.js";
 
-var virtualShareWindowTextureSize = 512;
+export class SharedWindow {
+	constructor(gl, sharedWindowMng, virtualSharedWindowShaderInfo) {
+		this.gl = gl;
+		this.sharedWindowMng = sharedWindowMng;
+		this.virtualSharedWindowShaderInfo = virtualSharedWindowShaderInfo;
 
-//[[left, right], [top, bottom]]の順
-var videoPercentRangeInWindowShareMode = [[0.0, 100.0], [0.0, 100.0]];
-var SharedWindow_previousMousePos = [null, null];
-
-function ShareWindow_createTextureData() {
-	var virtualShareWindowVideo = document.getElementById("virtualShareWindowVideo");
-	var virtualShareWindowWidthOffset = virtualShareWindowVideo.width * videoPercentRangeInWindowShareMode[0][0] / 100.0;
-	var virtualShareWindowWidthRange = virtualShareWindowVideo.width
-		* (videoPercentRangeInWindowShareMode[0][1] - videoPercentRangeInWindowShareMode[0][0]) / 100.0;
-	var virtualShareWindowHeightOffset = virtualShareWindowVideo.height * videoPercentRangeInWindowShareMode[1][0] / 100.0;
-	var virtualShareWindowHeightRange = virtualShareWindowVideo.height
-		* (videoPercentRangeInWindowShareMode[1][1] - videoPercentRangeInWindowShareMode[1][0]) / 100.0;
-
-	virtualShareWindowVideo.width = virtualShareWindowVideo.videoWidth;
-	virtualShareWindowVideo.height = virtualShareWindowVideo.videoHeight;
-	g_virtualShareWindowTrimmedSize.width = virtualShareWindowWidthRange;
-	g_virtualShareWindowTrimmedSize.height = virtualShareWindowHeightRange;
-
-	if (g_virtualShareWindowTrimmedSize.width <= 0 || g_virtualShareWindowTrimmedSize.height == 0) {
-		return;
+		this.trimmedSize = {width: 1920, height: 1080};
+		this.positionData = null;
+		this.positionVbo = null;
+		this.colorVbo = null;
+		this.textureVbo = null;
+		this.ibo = null;
+		this.textureObj = new CanvasTexture(this.gl, "virtualShareWindowTexture");
+	
+		this.mMatrix = SharedWindow.mat.identity(SharedWindow.mat.create());
+        this.mvpMatrix = SharedWindow.mat.identity(SharedWindow.mat.create());
+		
+		const virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
+		virtualShareWindowTexture.width = SharedWindow.textureSize;
+		virtualShareWindowTexture.height = SharedWindow.textureSize;
+		this.createVirtualShareWindowBuffer();
+		this.update();
 	}
 
-	var virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
-	var virtualShareWindowTextureCtx = virtualShareWindowTexture.getContext("2d");
-	virtualShareWindowTextureCtx.drawImage(virtualShareWindowVideo, virtualShareWindowWidthOffset, virtualShareWindowHeightOffset,
-		virtualShareWindowWidthRange, virtualShareWindowHeightRange,
-		0, 0, virtualShareWindowTextureSize, virtualShareWindowTextureSize);
+	createVirtualShareWindowBuffer() {
+		this.positionData = new Float32Array((SharedWindow.planeNum + 1) * 2 * 3);
+		var colorData = new Float32Array((SharedWindow.planeNum + 1) * 2 * 4);
+		var textureData = new Float32Array((SharedWindow.planeNum + 1) * 2 * 2);
+		var indexData = new Int32Array(SharedWindow.planeNum * 6);
 
-	if (g_virtualShareWindowTextureObj != null) {
-		g_virtualShareWindowTextureObj.redraw();
-	}
-}
-
-function SharedWindow_showTrimmingMode() {
-	var trimmingBox = document.getElementById("trimmingBox");
-	var underBackgroundVideo = document.getElementById("underBackground");
-	var underBackgroundVideoWidth = underBackgroundVideo.videoWidth;
-	var underBackgroundVideoHeight = underBackgroundVideo.videoHeight;
-	var actualSize = 0;
-	var brankSize = 0;
-	var borderWidth = 3;
-	var frameLinePos = [0, 0, 0, 0]; //[left, right, top, bottom]
-
-	underBackgroundVideo.width = document.documentElement.clientWidth;
-	underBackgroundVideo.height = document.documentElement.clientHeight;
-	if (underBackgroundVideo.width * underBackgroundVideoHeight / underBackgroundVideoWidth > underBackgroundVideo.height) {
-		//画面の横の長さが長く、左右に余白がある場合
-		actualSize = underBackgroundVideo.height * underBackgroundVideoWidth / underBackgroundVideoHeight;
-		brankSize = underBackgroundVideo.width - actualSize;
-		frameLinePos[0] = (brankSize * 0.5 + actualSize * (videoPercentRangeInWindowShareMode[0][0] / 100.0));
-		frameLinePos[1] = (brankSize * 0.5 + actualSize * (videoPercentRangeInWindowShareMode[0][1] / 100.0));
-		frameLinePos[2] = (underBackgroundVideo.height * (videoPercentRangeInWindowShareMode[1][0] / 100.0));
-		frameLinePos[3] = (underBackgroundVideo.height * (videoPercentRangeInWindowShareMode[1][1] / 100.0));
-	}
-	else {
-		//画面の縦の長さが長く、上下に余白がある場合
-		actualSize = underBackgroundVideo.width * underBackgroundVideoHeight / underBackgroundVideoWidth;
-		brankSize = underBackgroundVideo.height - actualSize;
-		frameLinePos[0] = (underBackgroundVideo.width * (videoPercentRangeInWindowShareMode[0][0] / 100.0));
-		frameLinePos[1] = (underBackgroundVideo.width * (videoPercentRangeInWindowShareMode[0][1] / 100.0));
-		frameLinePos[2] = (brankSize * 0.5 + actualSize * (videoPercentRangeInWindowShareMode[1][0] / 100.0));
-		frameLinePos[3] = (brankSize * 0.5 + actualSize * (videoPercentRangeInWindowShareMode[1][1] / 100.0));
-	}
-	trimmingBox.style.left = frameLinePos[0] + "px";
-	trimmingBox.style.top = frameLinePos[2] + "px";
-	trimmingBox.style.width = (frameLinePos[1] - frameLinePos[0] - borderWidth * 2) + "px";
-	trimmingBox.style.height = (frameLinePos[3] - frameLinePos[2] - borderWidth * 2) + "px";
-	trimmingBox.style.display = "";
-	underBackgroundVideo.style.margin = "0px 0px";
-	underBackgroundVideo.style.cssText += "clip-path: none";
-	underBackgroundVideo.style.display = "";
-}
-
-function SharedWindow_showTrimmedWindow() {
-    var trimmingBox = document.getElementById("trimmingBox");
-    trimmingBox.style.display = "none";
-	var underBackgroundVideo = document.getElementById("underBackground");
-	var videoElementSize = [0, 0]; //[width, height]
-	var videoElementMargin = [0, 0]; //[xMargin, yMargin]
-	var videoPercentDiff = [(videoPercentRangeInWindowShareMode[0][1] - videoPercentRangeInWindowShareMode[0][0]),
-		(videoPercentRangeInWindowShareMode[1][1] - videoPercentRangeInWindowShareMode[1][0])]; //[width, height]
-	var trimmedWindowSize = [underBackgroundVideo.videoWidth * (videoPercentDiff[0] / 100.0),
-		underBackgroundVideo.videoHeight * (videoPercentDiff[1] / 100.0)]; //[width, height]
-
-	if (document.documentElement.clientWidth * trimmedWindowSize[1] / trimmedWindowSize[0] > document.documentElement.clientHeight) {
-		//トリミング後、左右に余白ができる場合
-		videoElementSize[1] = document.documentElement.clientHeight * 100.0 / videoPercentDiff[1];
-		videoElementSize[0] = videoElementSize[1] * underBackgroundVideo.videoWidth / underBackgroundVideo.videoHeight;
-		videoElementMargin[1] = -videoElementSize[1] * videoPercentRangeInWindowShareMode[1][0] / 100.0;
-		videoElementMargin[0] = -videoElementSize[0] * videoPercentRangeInWindowShareMode[0][0] / 100.0
-			+ (document.documentElement.clientWidth - videoElementSize[0] * videoPercentDiff[0] / 100.0) * 0.5;
-	}
-	else {
-		//トリミング後、上下に余白ができる場合
-		videoElementSize[0] = document.documentElement.clientWidth * 100.0 / videoPercentDiff[0];
-		videoElementSize[1] = videoElementSize[0] * underBackgroundVideo.videoHeight / underBackgroundVideo.videoWidth;
-		videoElementMargin[0] = -videoElementSize[0] * videoPercentRangeInWindowShareMode[0][0] / 100.0;
-		videoElementMargin[1] = -videoElementSize[1] * videoPercentRangeInWindowShareMode[1][0] / 100.0
-			+ (document.documentElement.clientHeight - videoElementSize[1] * videoPercentDiff[1] / 100.0) * 0.5;
-	}
-	underBackgroundVideo.width = videoElementSize[0];
-	underBackgroundVideo.height = videoElementSize[1];
-	underBackgroundVideo.style.margin = videoElementMargin[1].toString() + "px "
-		+ videoElementMargin[0].toString() + "px";
-	underBackgroundVideo.style.display = "";
-
-	var leftPixel = videoElementSize[0] * videoPercentRangeInWindowShareMode[0][0] / 100.0;
-	var rightPixel = videoElementSize[0] * videoPercentRangeInWindowShareMode[0][1] / 100.0;
-	var topPixel = videoElementSize[1] * videoPercentRangeInWindowShareMode[1][0] / 100.0;
-	var bottomPixel = videoElementSize[1] * videoPercentRangeInWindowShareMode[1][1] / 100.0;
-	underBackgroundVideo.style.cssText += "clip-path: polygon(" + leftPixel.toString() + "px " + topPixel.toString() + "px, "
-										+ rightPixel.toString() + "px " + topPixel.toString() + "px, "
-										+ rightPixel.toString() + "px " + bottomPixel.toString() + "px, "
-										+ leftPixel.toString() + "px " + bottomPixel.toString() + "px)";
-}
-
-function SharedWindow_keyUpEvent(event) {
-	if (event.key == "t") {
-		if (g_windowShareMode) {
-			g_trimmingMode = !g_trimmingMode;
-			SharedWindow_previousMousePos[0] = null;
-			SharedWindow_previousMousePos[1] = null;
-		}
-	}
-	else if (event.key == "r") {
-		if (g_trimmingMode) {
-			videoPercentRangeInWindowShareMode[0][0] = 0.0;
-			videoPercentRangeInWindowShareMode[0][1] = 100.0;
-			videoPercentRangeInWindowShareMode[1][0] = 0.0;
-			videoPercentRangeInWindowShareMode[1][1] = 100.0;
-		}
-	}
-	else if (event.key == "b") {
-		if (g_windowShareMode) {
-			g_windowShareBackEnable = !g_windowShareBackEnable;
-		}
-	}
-	else if (event.key == "s") {
-		g_trimmingMode = false;
-		g_windowShareBackEnable = false;
-		SharedWindow_previousMousePos[0] = null;
-		SharedWindow_previousMousePos[1] = null;
-		g_windowShareMode = !g_windowShareMode;
-	}
-}
-
-function SharedWindow_mouseDownEvent(event) {
-	if (g_trimmingMode) {
-		SharedWindow_previousMousePos[0] = event.pageX;
-		SharedWindow_previousMousePos[1] = event.pageY;
-	}
-}
-
-function SharedWindow_mouseMoveEvent(event) {
-	if (SharedWindow_previousMousePos[0] != null && SharedWindow_previousMousePos[1] != null && g_trimmingMode) {
-		var underBackgroundVideo = document.getElementById("underBackground");
-		var underBackgroundVideoWidth = underBackgroundVideo.videoWidth;
-		var underBackgroundVideoHeight = underBackgroundVideo.videoHeight;
-		var actualVideoSize = [0, 0]; //[width, height]
-		var videoOffset = [0, 0]; //[xOffset, yOffset]
-		var moveAmount = [event.pageX - SharedWindow_previousMousePos[0],  event.pageY - SharedWindow_previousMousePos[1]];
-
-		if (underBackgroundVideo.width * underBackgroundVideoHeight / underBackgroundVideoWidth > underBackgroundVideo.height) {
-			//画面の横の長さが長く、左右に余白がある場合
-			actualVideoSize[0] = underBackgroundVideo.height * underBackgroundVideoWidth / underBackgroundVideoHeight;
-			actualVideoSize[1] = underBackgroundVideo.height;
-			videoOffset[0] = (underBackgroundVideo.width - actualVideoSize[0]) * 0.5;
-		}
-		else {
-			//画面の縦の長さが長く、上下に余白がある場合
-			actualVideoSize[0] = underBackgroundVideo.width;
-			actualVideoSize[1] = underBackgroundVideo.width * underBackgroundVideoHeight / underBackgroundVideoWidth;
-			videoOffset[1] = (underBackgroundVideo.height - actualVideoSize[1]) * 0.5;
-		}
-
-		var minPercent = 0.0;
-		var maxPercent = 0.0;
-		for (var xyIdx = 0; xyIdx < 2; xyIdx++) {
-			for (var minMaxIdx = 0; minMaxIdx < 2; minMaxIdx++) {
-				if (SharedWindow_previousMousePos[xyIdx] >= actualVideoSize[xyIdx] * videoPercentRangeInWindowShareMode[xyIdx][minMaxIdx] / 100.0 + videoOffset[xyIdx] - 10
-					&& SharedWindow_previousMousePos[xyIdx] <= actualVideoSize[xyIdx] * videoPercentRangeInWindowShareMode[xyIdx][minMaxIdx] / 100.0 + videoOffset[xyIdx] + 10) {
-
-					minPercent = (minMaxIdx == 0 ? 0.0: videoPercentRangeInWindowShareMode[xyIdx][0] + 10.0);
-					maxPercent = (minMaxIdx == 0 ? videoPercentRangeInWindowShareMode[xyIdx][1] - 10.0: 100.0);
-					videoPercentRangeInWindowShareMode[xyIdx][minMaxIdx] += moveAmount[xyIdx] / actualVideoSize[xyIdx] * 100.0;
-					if (videoPercentRangeInWindowShareMode[xyIdx][minMaxIdx] < minPercent) {
-						videoPercentRangeInWindowShareMode[xyIdx][minMaxIdx] = minPercent;
-					}
-					else if (videoPercentRangeInWindowShareMode[xyIdx][minMaxIdx] > maxPercent) {
-						videoPercentRangeInWindowShareMode[xyIdx][minMaxIdx] = maxPercent;
-					}
-					break;
-				}
+		for (var idx = 0; idx < SharedWindow.planeNum + 1; idx++) {
+			for (var cIdx = 0; cIdx < 8; cIdx++) {
+				colorData[idx * 8 + cIdx] = 1.0;
 			}
+
+			textureData[idx * 4] = idx / SharedWindow.planeNum;
+			textureData[idx * 4 + 1] = 0.0;
+			textureData[idx * 4 + 2] = idx / SharedWindow.planeNum;
+			textureData[idx * 4 + 3] = 1.0;
 		}
 
-		SharedWindow_previousMousePos[0] = event.pageX;
-		SharedWindow_previousMousePos[1] = event.pageY;
+		for (var idx = 0; idx < SharedWindow.planeNum; idx++) {
+			indexData[idx * 6] = idx * 2;
+			indexData[idx * 6 + 1] = idx * 2 + 1;
+			indexData[idx * 6 + 2] = idx * 2 + 2;
+			indexData[idx * 6 + 3] = idx * 2 + 2;
+			indexData[idx * 6 + 4] = idx * 2 + 1;
+			indexData[idx * 6 + 5] = idx * 2 + 3;
+		}
+
+		this.positionVbo = createVbo(this.gl, this.positionData, true);
+		this.colorVbo = createVbo(this.gl, colorData);
+		this.textureVbo = createVbo(this.gl, textureData);
+		this.ibo = createIbo(this.gl, indexData);
+	}
+
+	update() {
+		// テクスチャ更新
+		const virtualShareWindowVideo = document.getElementById("virtualShareWindowVideo");
+		const virtualShareWindowWidthOffset = virtualShareWindowVideo.width 
+			* this.sharedWindowMng.videoPercentRangeInWindowShareMode[0][0] / 100.0;
+		const virtualShareWindowWidthRange = virtualShareWindowVideo.width
+			* (this.sharedWindowMng.videoPercentRangeInWindowShareMode[0][1]
+			- this.sharedWindowMng.videoPercentRangeInWindowShareMode[0][0]) / 100.0;
+		const virtualShareWindowHeightOffset = virtualShareWindowVideo.height
+			* this.sharedWindowMng.videoPercentRangeInWindowShareMode[1][0] / 100.0;
+		const virtualShareWindowHeightRange = virtualShareWindowVideo.height
+			* (this.sharedWindowMng.videoPercentRangeInWindowShareMode[1][1]
+			- this.sharedWindowMng.videoPercentRangeInWindowShareMode[1][0]) / 100.0;
+
+		virtualShareWindowVideo.width = virtualShareWindowVideo.videoWidth;
+		virtualShareWindowVideo.height = virtualShareWindowVideo.videoHeight;
+		this.trimmedSize.width = virtualShareWindowWidthRange;
+		this.trimmedSize.height = virtualShareWindowHeightRange;
+
+		if (this.trimmedSize.width <= 0
+			|| this.trimmedSize.height <= 0) {
+			
+			return;
+		}
+
+		const virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
+		const virtualShareWindowTextureCtx = virtualShareWindowTexture.getContext("2d");
+		virtualShareWindowTextureCtx.drawImage(virtualShareWindowVideo,
+			virtualShareWindowWidthOffset, virtualShareWindowHeightOffset,
+			virtualShareWindowWidthRange, virtualShareWindowHeightRange,
+			0, 0, SharedWindow.textureSize, 
+			SharedWindow.textureSize);
+
+		if (this.textureObj != null) {
+			this.textureObj.redraw();
+		}
+
+		// 頂点位置更新
+		var virtualShareWindowWidth = 0.0;
+		if (this.trimmedSize.height > 0) {
+			virtualShareWindowWidth = SharedWindow.height * this.trimmedSize.width / this.trimmedSize.height;
+		}
+	
+		const upperRadius = SharedWindow.radius + SharedWindow.height * 0.5 * SharedWindow.tiltCos;
+		const lowerRadius = SharedWindow.radius - SharedWindow.height * 0.5 * SharedWindow.tiltCos;
+		const upperCircleLength = 2.0 * Math.PI * upperRadius;
+		var currentAngle = Math.PI + Math.PI * virtualShareWindowWidth / upperCircleLength;
+		const stepAngle = 2.0 * Math.PI * virtualShareWindowWidth / (upperCircleLength * SharedWindow.planeNum);
+		for (var idx = 0; idx < SharedWindow.planeNum + 1; idx++) {
+			this.positionData[idx * 6] = upperRadius * Math.sin(currentAngle);
+			this.positionData[idx * 6 + 1] = SharedWindow.yPos + SharedWindow.height * 0.5 * SharedWindow.tiltSin;
+			this.positionData[idx * 6 + 2] = upperRadius * Math.cos(currentAngle);
+			this.positionData[idx * 6 + 3] = lowerRadius * Math.sin(currentAngle);
+			this.positionData[idx * 6 + 4] = SharedWindow.yPos - SharedWindow.height * 0.5 * SharedWindow.tiltSin;
+			this.positionData[idx * 6 + 5] = lowerRadius * Math.cos(currentAngle);
+			currentAngle -= stepAngle;
+		}
+	}
+
+	async draw(vpMatrix) {
+		this.gl.useProgram(this.virtualSharedWindowShaderInfo.program);
+
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionVbo);
+		this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.positionData);
+		this.virtualSharedWindowShaderInfo.enableAttribute(0);
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.colorVbo);
+		this.virtualSharedWindowShaderInfo.enableAttribute(1);
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.textureVbo);
+		this.virtualSharedWindowShaderInfo.enableAttribute(2);
+		this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.ibo);
+
+		SharedWindow.mat.identity(this.mMatrix);
+		SharedWindow.mat.multiply(vpMatrix, this.mMatrix, this.mvpMatrix);
+		this.gl.uniformMatrix4fv(this.virtualSharedWindowShaderInfo.uniLocation[0], false, this.mvpMatrix);
+		this.gl.activeTexture(this.gl.TEXTURE0);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.textureObj.texId);
+		this.gl.uniform1i(this.virtualSharedWindowShaderInfo.uniLocation[1], 0);
+		
+		this.gl.drawElements(this.gl.TRIANGLES, SharedWindow.planeNum * 6, this.gl.UNSIGNED_SHORT, 0);
+	
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
+        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
 	}
 }
 
-function SharedWindow_mouseUpEvent(event) {
-	SharedWindow_previousMousePos[0] = null;
-	SharedWindow_previousMousePos[1] = null;
-}
-
-export function SharedWindow_init() {
-	if (g_hasShareWindow) {
-		document.addEventListener("keyup", SharedWindow_keyUpEvent);
-		document.addEventListener("mousedown", SharedWindow_mouseDownEvent);
-		document.addEventListener("mousemove", SharedWindow_mouseMoveEvent);
-		document.addEventListener("mouseup", SharedWindow_mouseUpEvent);
-		document.addEventListener("mouseleave", SharedWindow_mouseUpEvent);
-	}
-	var virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
-	virtualShareWindowTexture.width = virtualShareWindowTextureSize;
-	virtualShareWindowTexture.height = virtualShareWindowTextureSize;
-}
-
-export function SharedWindow_main() {
-	if (!g_hasShareWindow) {
-		return;
-	}
-
-	if (g_windowShareMode) {
-        if (g_trimmingMode) {
-    		SharedWindow_showTrimmingMode();
-    	}
-    	else {
-            SharedWindow_showTrimmedWindow();
-    	}
-	}
-	else {
-		document.getElementById("trimmingBox").style.display = "none";
-		document.getElementById("underBackground").style.display = "none";
-	}
-	ShareWindow_createTextureData();
-}
+SharedWindow.mat = new matIV();
+SharedWindow.textureSize = 512;
+SharedWindow.planeNum = 21;
+SharedWindow.height = 5.0;
+SharedWindow.radius = 12.0;
+SharedWindow.yPos = 4.0;
+SharedWindow.tiltAngle = Math.PI * 80.0 / 180.0;
+SharedWindow.tiltSin = Math.sin(SharedWindow.tiltAngle);
+SharedWindow.tiltCos = Math.cos(SharedWindow.tiltAngle);

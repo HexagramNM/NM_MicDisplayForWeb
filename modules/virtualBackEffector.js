@@ -1,167 +1,82 @@
-
-import {create_shader, create_program} from "./createWebGLObj.js";
-
+import {
+    createShader,
+    ShaderInfo,
+    PlaneBuffer
+} from "./createWebGLObj.js";
 import imageVshaderSrc from "./../shaders/imageVshader.vert.js";
 import backMaskFshaderSrc from "./../shaders/backMaskFshader.frag.js";
 
-var backMaskShaderInfo = {
-  program: null,
-  attLocation: new Array(),
-  attStride: new Array(),
-  uniLocation: new Array()
-}
-
-var isInitialized = false;
-const HISTOGRAM_LEVEL = 256;
-
-function createShader() {
-  var img_shader = create_shader(imageVshaderSrc, "x-shader/x-vertex");
-	var bm_shader = create_shader(backMaskFshaderSrc, "x-shader/x-fragment");
-
-  function setupImageShaderProgram(shaderInfo) {
-    shaderInfo.attLocation[0]=g_gl.getAttribLocation(shaderInfo.program, 'position');
-    shaderInfo.attLocation[1]=g_gl.getAttribLocation(shaderInfo.program, 'textureCoord');
-    shaderInfo.attStride[0]=3;
-    shaderInfo.attStride[1]=2;
-  }
-
-  backMaskShaderInfo.program = create_program(img_shader, bm_shader);
-  setupImageShaderProgram(backMaskShaderInfo);
-  backMaskShaderInfo.uniLocation[0] = g_gl.getUniformLocation(backMaskShaderInfo.program, 'texture');
-  backMaskShaderInfo.uniLocation[1] = g_gl.getUniformLocation(backMaskShaderInfo.program, 'time');
-  backMaskShaderInfo.uniLocation[2] = g_gl.getUniformLocation(backMaskShaderInfo.program, 'cdf');
-}
-
 export class VirtualBackEffector {
-    constructor(textureSize, tempOutTexUnitId, cdfTextureUnitId) {
+    constructor(gl, sourceTexture, textureSize) {
+        this.gl = gl;
+        this.sourceTexture = sourceTexture;
+        this.textureSize = textureSize;
+        this.startTime = performance.now();
 
-      this.textureSize = textureSize;
-      this.tempOutTexUnit = g_gl["TEXTURE" + tempOutTexUnitId.toString()];
-      this.cdfTextureUnit = g_gl["TEXTURE" + cdfTextureUnitId.toString()];
-      this.cdfTextureUnitId = cdfTextureUnitId;
+        const imgShader = createShader(this.gl, imageVshaderSrc, "x-shader/x-vertex");
+        const bmShader = createShader(this.gl, backMaskFshaderSrc, "x-shader/x-fragment");
+        this.backMaskShaderInfo = new ShaderInfo(this.gl, imgShader, bmShader,
+            ['position', 'textureCoord'], [3, 2], ['texture', 'time']);
 
-      if (!isInitialized) {
-				createShader();
-        isInitialized = true;
-      }
+        this.outputTexture = this.gl.createTexture();
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.outputTexture);
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.textureSize, this.textureSize, 0,
+            this.gl.RGBA, this.gl.UNSIGNED_BYTE, null);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
 
-      this.framebufferNum = 1;
-      this.texture = new Array(this.framebufferNum);
-      this.framebuffer = new Array(this.framebufferNum);
+        this.framebuffer = this.gl.createFramebuffer();
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffer);
 
-      var previousActiveTexture = g_gl.getParameter(g_gl.ACTIVE_TEXTURE);
-      g_gl.activeTexture(this.tempOutTexUnit);
-    	for (var i = 0; i < this.framebufferNum; i++) {
-    		this.framebuffer[i] = g_gl.createFramebuffer();
-    		g_gl.bindFramebuffer(g_gl.FRAMEBUFFER, this.framebuffer[i]);
-
-    		var depthRenderbuffer = g_gl.createRenderbuffer();
-    		g_gl.bindRenderbuffer(g_gl.RENDERBUFFER, depthRenderbuffer);
-    		g_gl.renderbufferStorage(g_gl.RENDERBUFFER, g_gl.DEPTH_COMPONENT16, this.textureSize, this.textureSize);
-    		g_gl.framebufferRenderbuffer(g_gl.FRAMEBUFFER, g_gl.DEPTH_ATTACHMENT, g_gl.RENDERBUFFER, depthRenderbuffer);
-
-    		this.texture[i] = g_gl.createTexture();
-    		g_gl.bindTexture(g_gl.TEXTURE_2D, this.texture[i]);
-    		g_gl.texImage2D(g_gl.TEXTURE_2D, 0, g_gl.RGBA, this.textureSize, this.textureSize, 0,
-          g_gl.RGBA, g_gl.UNSIGNED_BYTE, null);
-    		g_gl.texParameteri(g_gl.TEXTURE_2D, g_gl.TEXTURE_MIN_FILTER, g_gl.LINEAR);
-    		g_gl.texParameteri(g_gl.TEXTURE_2D, g_gl.TEXTURE_MAG_FILTER, g_gl.LINEAR);
-        g_gl.texParameteri(g_gl.TEXTURE_2D, g_gl.TEXTURE_WRAP_S, g_gl.CLAMP_TO_EDGE);
-      	g_gl.texParameteri(g_gl.TEXTURE_2D, g_gl.TEXTURE_WRAP_T, g_gl.CLAMP_TO_EDGE);
-
-    		g_gl.framebufferTexture2D(g_gl.FRAMEBUFFER, g_gl.COLOR_ATTACHMENT0, g_gl.TEXTURE_2D, this.texture[i], 0);
-    		g_gl.bindTexture(g_gl.TEXTURE_2D, null);
-    		g_gl.bindRenderbuffer(g_gl.RENDERBUFFER, null);
-    		g_gl.bindFramebuffer(g_gl.FRAMEBUFFER, null);
-    	}
-
-      this.virtualBackHistogram = new Uint32Array(HISTOGRAM_LEVEL);
-      this.virtualBackCdf = new Uint8ClampedArray(HISTOGRAM_LEVEL);
-      this.cdfTexture = g_gl.createTexture();
-
-      g_gl.activeTexture(previousActiveTexture);
-    }
-
-    updateCdf() {
-      var virtualBackPreviousBlazePoseData 
-            = g_virtualBackPreviousBlazePoseCanvasCtx.getImageData(0, 0, 
-            g_virtualBackPreviousBlazePoseCanvas.width, g_virtualBackPreviousBlazePoseCanvas.height);
+        this.depthRenderbuffer = this.gl.createRenderbuffer();
+        this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, this.depthRenderbuffer);
+        this.gl.renderbufferStorage(this.gl.RENDERBUFFER, this.gl.DEPTH_COMPONENT16,
+            this.textureSize, this.textureSize);
+        this.gl.framebufferRenderbuffer(this.gl.FRAMEBUFFER, this.gl.DEPTH_ATTACHMENT,
+            this.gl.RENDERBUFFER, this.depthRenderbuffer);
         
-      const sourceImagePixelNum = g_virtualBackPreviousBlazePoseCanvas.width * g_virtualBackPreviousBlazePoseCanvas.height;
-      for (var idx = 0; idx < HISTOGRAM_LEVEL; idx++) {
-          this.virtualBackHistogram[idx] = 0;
-      }
-    
-      var mul = HISTOGRAM_LEVEL / 256.0;
-      for (var pidx = 0; pidx < sourceImagePixelNum; pidx++) {
-          const imageHeadPos = pidx * 4;
-          const r = virtualBackPreviousBlazePoseData.data[imageHeadPos];
-          const g = virtualBackPreviousBlazePoseData.data[imageHeadPos + 1];
-          const b = virtualBackPreviousBlazePoseData.data[imageHeadPos + 2];
-          const y = 0.299 * r + 0.587 * g + 0.114 * b;
-          this.virtualBackHistogram[(y * mul | 0)]++;
-      }
-  
-      for (var idx = 1; idx < HISTOGRAM_LEVEL; idx++) {
-          this.virtualBackHistogram[idx] = this.virtualBackHistogram[idx - 1] + this.virtualBackHistogram[idx];
-      }
-  
-      mul = 255.0 / sourceImagePixelNum;
-      for (var idx = 0; idx < HISTOGRAM_LEVEL; idx++) {
-          this.virtualBackCdf[idx] = (this.virtualBackHistogram[idx] * mul | 0);
-      }
-
-      var previousActiveTexture = g_gl.getParameter(g_gl.ACTIVE_TEXTURE);
-      g_gl.activeTexture(this.cdfTextureUnit);
-      g_gl.bindTexture(g_gl.TEXTURE_2D, this.cdfTexture);
-      g_gl.texImage2D(g_gl.TEXTURE_2D, 0, g_gl.LUMINANCE, HISTOGRAM_LEVEL, 1, 0,
-        g_gl.LUMINANCE, g_gl.UNSIGNED_BYTE, this.virtualBackCdf);
-      g_gl.texParameteri(g_gl.TEXTURE_2D, g_gl.TEXTURE_MIN_FILTER, g_gl.LINEAR);
-      g_gl.texParameteri(g_gl.TEXTURE_2D, g_gl.TEXTURE_MAG_FILTER, g_gl.LINEAR);
-      g_gl.activeTexture(previousActiveTexture);
+        this.gl.framebufferTexture2D(this.gl.FRAMEBUFFER, this.gl.COLOR_ATTACHMENT0,
+            this.gl.TEXTURE_2D, this.outputTexture, 0);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+        this.gl.bindRenderbuffer(this.gl.RENDERBUFFER, null);
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
     }
 
-    applyEffect(time, inTexUnitId) {
-      var previousViewport = g_gl.getParameter(g_gl.VIEWPORT);
-      var previousActiveTexture = g_gl.getParameter(g_gl.ACTIVE_TEXTURE);
-      g_gl.viewport(0, 0, this.textureSize, this.textureSize);
-      g_gl.blendFuncSeparate(g_gl.SRC_ALPHA, g_gl.ONE_MINUS_SRC_ALPHA, g_gl.ONE, g_gl.ONE);
-      g_gl.clearColor(0.0, 0.0, 0.0, 0.0);
-      g_gl.clearDepth(1.0);
+    applyEffect() {
+        const time = (performance.now() - this.startTime) * VirtualBackEffector.timeRate;
+        const previousViewPort = this.gl.getParameter(this.gl.VIEWPORT);
+        this.gl.viewport(0, 0, this.textureSize, this.textureSize);
+        this.gl.blendFuncSeparate(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA, this.gl.ONE, this.gl.ONE);
+        this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
+        this.gl.clearDepth(1.0);
 
-			function settingVbo(shaderInfo) {
-				g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_plane_position_vbo);
-				g_gl.enableVertexAttribArray(shaderInfo.attLocation[0]);
-				g_gl.vertexAttribPointer(shaderInfo.attLocation[0], shaderInfo.attStride[0], g_gl.FLOAT, false, 0, 0);
-				g_gl.bindBuffer(g_gl.ARRAY_BUFFER, g_image_texture_vbo);
-				g_gl.enableVertexAttribArray(shaderInfo.attLocation[1]);
-				g_gl.vertexAttribPointer(shaderInfo.attLocation[1], shaderInfo.attStride[1], g_gl.FLOAT, false, 0, 0);
-			}
+        this.gl.useProgram(this.backMaskShaderInfo.program);
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, PlaneBuffer.positionVbo);
+        this.backMaskShaderInfo.enableAttribute(0);
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, PlaneBuffer.imageTextureVbo);
+        this.backMaskShaderInfo.enableAttribute(1);
+        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, PlaneBuffer.ibo);
+        this.gl.activeTexture(this.gl.TEXTURE0);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.sourceTexture);
+        this.gl.uniform1i(this.backMaskShaderInfo.uniLocation[0], 0);
+        this.gl.uniform1f(this.backMaskShaderInfo.uniLocation[1], time);
 
-			g_gl.bindBuffer(g_gl.ELEMENT_ARRAY_BUFFER, g_plane_index_ibo);
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, this.framebuffer);
+        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
+        this.gl.drawElements(this.gl.TRIANGLES, PlaneBuffer.iboLength, this.gl.UNSIGNED_SHORT, 0);
+        this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, null);
 
-			g_gl.useProgram(backMaskShaderInfo.program);
-			settingVbo(backMaskShaderInfo);
-    	g_gl.uniform1i(backMaskShaderInfo.uniLocation[0], inTexUnitId);
-      g_gl.uniform1f(backMaskShaderInfo.uniLocation[1], time);
-      g_gl.uniform1i(backMaskShaderInfo.uniLocation[2], this.cdfTextureUnitId);
-
-      g_gl.activeTexture(this.tempOutTexUnit);
-			g_gl.bindTexture(g_gl.TEXTURE_2D, this.texture[0]);
-    	g_gl.bindFramebuffer(g_gl.FRAMEBUFFER, this.framebuffer[0]);
-    	g_gl.clear(g_gl.COLOR_BUFFER_BIT | g_gl.DEPTH_BUFFER_BIT);
-    	g_gl.drawElements(g_gl.TRIANGLES, g_plane_index.length, g_gl.UNSIGNED_SHORT, 0);
-			g_gl.bindFramebuffer(g_gl.FRAMEBUFFER, null);
-
-      g_gl.activeTexture(this.tempOutTexUnit);
-			g_gl.bindTexture(g_gl.TEXTURE_2D, null);
-      g_gl.activeTexture(previousActiveTexture);
-      g_gl.viewport(previousViewport[0], previousViewport[1],
-        previousViewport[2], previousViewport[3]);
-      g_gl.blendFuncSeparate(g_gl.SRC_ALPHA, g_gl.ONE_MINUS_SRC_ALPHA, g_gl.ONE, g_gl.ONE);
+        this.gl.viewport(previousViewPort[0], previousViewPort[1],
+            previousViewPort[2], previousViewPort[3]);
+        this.gl.blendFuncSeparate(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA, this.gl.ONE, this.gl.ONE);
     }
 
     getOutputTexture() {
-      return this.texture[this.framebufferNum - 1];
+        return this.outputTexture;
     }
 }
+
+VirtualBackEffector.timeRate = 60.0 / 50000.0

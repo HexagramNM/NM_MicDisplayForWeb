@@ -3,7 +3,6 @@ export default `
 #define PI 3.141592
 precision mediump float;
 uniform sampler2D texture;
-uniform float time;
 varying vec4 vColor;
 varying vec2 vTextureCoord;
 void main(void) {
