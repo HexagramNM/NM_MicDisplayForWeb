@@ -306,7 +306,7 @@ export class NM_MicDisplayStarter {
     }
 
     async startProcess() {
-        document.oncontextmenu = this.toggleMirror;
+        document.oncontextmenu = () => { return this.toggleMirror(); };
         document.getElementById("easyInst").style.display = "none";
         this.saveOption("cameraSelect");
         this.saveOption("micSelect");
