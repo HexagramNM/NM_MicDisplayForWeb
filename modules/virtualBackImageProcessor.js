@@ -6,7 +6,7 @@ export class VirtualBackImageProcessor {
         
         this.hasVirtualBack = false;
         this.mirrorVirtualBack = false;
-        this.originalSize = {width: 960, height: 720};
+        this.originalSize = {width: 1920, height: 1440};
 
         this.blazePoseNet = null;
         this.blazePoseModelType = blazePoseModelType;

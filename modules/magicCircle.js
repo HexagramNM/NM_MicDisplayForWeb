@@ -54,7 +54,7 @@ export class MagicCircle {
         this.normalShaderInfo.enableAttribute(2);
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, PlaneBuffer.ibo);
     
-        const rad = (this.count - Math.floor(this.count / 720.0) * 720.0) * Math.PI / 360;
+        const rad = (this.count - Math.floor(this.count / 360.0) * 360.0) * Math.PI / 180;
         MagicCircle.mat.identity(this.mMatrix);
         MagicCircle.mat.rotate(this.mMatrix, rad, [0.0, 1.0, 0.0], this.mMatrix);
         MagicCircle.mat.rotate(this.mMatrix, Math.PI / 2.0, [1.0, 0.0, 0.0], this.mMatrix);
@@ -88,4 +88,4 @@ export class MagicCircle {
 
 MagicCircle.mat = new matIV();
 MagicCircle.circleRadius = 13.0;
-MagicCircle.fps = 60.0;
+MagicCircle.fps = 30.0;

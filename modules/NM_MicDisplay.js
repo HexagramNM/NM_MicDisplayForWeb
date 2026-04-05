@@ -76,7 +76,7 @@ export class NM_MicDisplay {
 		this.vMatrix = NM_MicDisplay.mat.identity(NM_MicDisplay.mat.create());
 		this.pMatrix = NM_MicDisplay.mat.identity(NM_MicDisplay.mat.create());
 		this.vpMatrix = NM_MicDisplay.mat.identity(NM_MicDisplay.mat.create());
-		NM_MicDisplay.mat.lookAt([0.0, 9.0, -18.0], [0,2.0,0], [0, 1, 0], this.vMatrix);
+		NM_MicDisplay.mat.lookAt([0.0, 8.8, -18.0], [0,1.8,0], [0, 1, 0], this.vMatrix);
 		NM_MicDisplay.mat.perspective(60.0, c.width/c.height, 1.0, 100, this.pMatrix);
 		NM_MicDisplay.mat.multiply(this.pMatrix, this.vMatrix, this.vpMatrix);
 	}

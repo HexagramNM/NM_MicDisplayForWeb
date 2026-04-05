@@ -63,4 +63,4 @@ export class VirtualBack {
 }
 
 VirtualBack.mat = new matIV();
-VirtualBack.captureWidth = 7.0;
+VirtualBack.captureWidth = 6.5;

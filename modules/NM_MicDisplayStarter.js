@@ -350,7 +350,7 @@ export class NM_MicDisplayStarter {
         this.micDisplay = new NM_MicDisplay(gl, micDisplayAudioStream,
             this.sharedWindowMng, this.virtualBackImageProc);
         await this.micDisplay.waitForTextureLoading();
-        requestAnimationFrame(() => {this.main();});
+        requestAnimationFrame(() => { this.main(); });
     }
 
     saveOption(selectElementId) {
@@ -375,6 +375,8 @@ export class NM_MicDisplayStarter {
     }
 
     async main() {
+        const start = performance.now();
+        const oneFrameTime = 1000.0 / 30.0;
         this.virtualBackImageProc.preprocess();
         await this.virtualBackImageProc.drawTextureCanvas();
         if (this.sharedWindowMng != null) {
@@ -382,6 +384,13 @@ export class NM_MicDisplayStarter {
         }
         this.micDisplay.main();
         await this.virtualBackImageProc.postprocess();
-        requestAnimationFrame(() => {this.main();});
+        const elapsed = performance.now() - start;
+
+        if (elapsed < oneFrameTime) {
+            setTimeout(() => {requestAnimationFrame(() => { this.main(); });}, oneFrameTime - elapsed);
+        }
+        else {
+            requestAnimationFrame(() => { this.main(); });
+        }
     }
 }
