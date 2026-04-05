@@ -25,13 +25,14 @@ export class VirtualBack {
             this.gl, this.virtualBackTexture.texId, virtualBackTextureSize);
 
         this.outlineTexture = new OutlineTextureGenerator(
-            this.gl, this.effector.getOutputTexture(), virtualBackTextureSize, 4.0);
+            this.gl, this.effector.getOutputTexture(),
+            virtualBackTextureSize, width, height);
     }
 
     update() {
         this.virtualBackTexture.redraw();
         this.effector.applyEffect();
-        this.outlineTexture.generateOutline(12, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0);
+        this.outlineTexture.generateOutline(16, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0);
     }
 
     draw(vpMatrix) {

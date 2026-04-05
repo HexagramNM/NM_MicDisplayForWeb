@@ -336,6 +336,19 @@ export class NM_MicDisplayStarter {
             return;
         }
         const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
+        const extNames = [
+            'OES_texture_float',
+            'OES_texture_float_linear',
+            'EXT_float_blend',
+            'WEBGL_color_buffer_float'
+        ];
+        for (var i = 0; i < extNames.length; i++) {
+            const ext = gl.getExtension(extNames[i]);
+            if (!ext) {
+                return;
+            }
+        }
+
         PlaneBuffer.init(gl);
 
         this.virtualBackImageProc = new VirtualBackImageProcessor(gl,
