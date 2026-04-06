@@ -60,7 +60,7 @@ export class SharedWindowManager {
         trimmingBox.style.display = "";
         underBackgroundVideo.style.margin = "0px 0px";
         underBackgroundVideo.style.cssText += "clip-path: none";
-        underBackgroundVideo.style.display = "";
+        underBackgroundVideo.style.visibility = "visible";
     }
 
     showTrimmedWindow() {
@@ -94,7 +94,7 @@ export class SharedWindowManager {
         underBackgroundVideo.height = videoElementSize[1];
         underBackgroundVideo.style.margin = videoElementMargin[1].toString() + "px "
             + videoElementMargin[0].toString() + "px";
-        underBackgroundVideo.style.display = "";
+        underBackgroundVideo.style.visibility = "visible";
 
         const leftPixel = videoElementSize[0] * this.videoPercentRangeInWindowShareMode[0][0] / 100.0;
         const rightPixel = videoElementSize[0] * this.videoPercentRangeInWindowShareMode[0][1] / 100.0;
@@ -208,7 +208,7 @@ export class SharedWindowManager {
         }
         else {
             document.getElementById("trimmingBox").style.display = "none";
-            document.getElementById("underBackground").style.display = "none";
+            document.getElementById("underBackground").style.visibility = "hidden";
         }
     }
 }
