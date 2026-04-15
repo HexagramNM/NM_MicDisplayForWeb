@@ -21,7 +21,8 @@ export class VirtualBackImageProcessor {
 
         this.hasVirtualBack = true;
         this.initCanvas(videoStream);
-        this.intermediateCanvasEqualizer = new HistogramEqualizer("virtualBackVideoSource", "virtualBackIntermediate");
+        this.intermediateCanvasEqualizer = new HistogramEqualizer("virtualBackVideo",
+            ["virtualBackIntermediate", "virtualBackBlazePose"]);
     }
 
     initCanvas(videoStream) {
@@ -34,17 +35,12 @@ export class VirtualBackImageProcessor {
         this.videoComponent.height = this.originalSize.height;
         this.videoComponent.autoplay = true;
         this.videoComponent.srcObject = videoStream;
-        this.videoCanvas = document.getElementById("virtualBackVideoSource");
-        this.videoCanvas.width = VirtualBackImageProcessor.virtualBackTextureSize;
-        this.videoCanvas.height = VirtualBackImageProcessor.virtualBackTextureSize;
-        this.videoCanvasCtx = this.videoCanvas.getContext("2d", {willReadFrequently: true});
         this.intermediateCanvas = document.getElementById("virtualBackIntermediate");
         this.intermediateCanvas.width = VirtualBackImageProcessor.virtualBackTextureSize;
         this.intermediateCanvas.height = VirtualBackImageProcessor.virtualBackTextureSize;
         this.blazePoseCanvas = document.getElementById("virtualBackBlazePose");
         this.blazePoseCanvas.width = VirtualBackImageProcessor.blazePoseCanvasSize;
         this.blazePoseCanvas.height = VirtualBackImageProcessor.blazePoseCanvasSize;
-        this.blazePoseCanvasCtx = this.blazePoseCanvas.getContext("2d", {willReadFrequently: true});
         this.previousFrameCanvas = document.getElementById("virtualBackPreviousFrame");
         this.previousFrameCanvas.width = VirtualBackImageProcessor.virtualBackTextureSize;
         this.previousFrameCanvas.height = VirtualBackImageProcessor.virtualBackTextureSize;
@@ -115,14 +111,9 @@ export class VirtualBackImageProcessor {
         if (!this.hasVirtualBack) {
             return;
         }
+        
         this.blazePosePromise = new Promise(async (resolve) => {
-            this.videoCanvasCtx.drawImage(this.videoComponent,
-                0, 0, this.originalSize.width, this.originalSize.height,
-                0, 0, VirtualBackImageProcessor.virtualBackTextureSize, VirtualBackImageProcessor.virtualBackTextureSize);
             this.intermediateCanvasEqualizer.apply();
-            this.blazePoseCanvasCtx.drawImage(this.intermediateCanvas,
-                0, 0, VirtualBackImageProcessor.virtualBackTextureSize, VirtualBackImageProcessor.virtualBackTextureSize,
-                0, 0, VirtualBackImageProcessor.blazePoseCanvasSize, VirtualBackImageProcessor.blazePoseCanvasSize);
             resolve(await this.blazePoseNet.estimatePoses(this.blazePoseCanvas));
         });
     }

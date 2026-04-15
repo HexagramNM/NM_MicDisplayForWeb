@@ -1,137 +1,263 @@
-import {
-    createVbo,
-    createIbo,
-    createShader,
-    ShaderInfo,
-    CanvasTexture
-} from "./createWebGLObj.js";
-import imageVshaderSrc from "./../shaders/imageVshader.vert.js";
-import histogramEqualizerFshaderSrc from "../shaders/histogramEqualizerFshader.frag.js";
 
+import histCshaderSrc from "../shaders/webgpu_createHistogram.comp.js";
+import cdfCshaderSrc from "../shaders/webgpu_calcCdf.comp.js";
+import equalizerCshaderSrc from "../shaders/webgpu_histogramEqualizer.comp.js";
+import fullscreenVshaderSrc from "../shaders/webgpu_fullScreenTriangle.vert.js";
+import drawTextureFshaderSrc from "../shaders/webgpu_drawTexture.frag.js";
 
 export class HistogramEqualizer {
-    constructor(inputCanvasId, outputCanvasId) {
-        this.inputCanvas = document.getElementById(inputCanvasId);
-        this.inputCanvasCtx = this.inputCanvas.getContext("2d");
-
-        this.outputCanvas = document.getElementById(outputCanvasId);
-        this.gl = this.outputCanvas.getContext("webgl") || this.outputCanvas.getContext("experimental-webgl");
-        this.inputTexture = new CanvasTexture(this.gl, inputCanvasId);
-        
-        this.vertShader = createShader(this.gl, imageVshaderSrc, "x-shader/x-vertex");
-        this.fragShader = createShader(this.gl, histogramEqualizerFshaderSrc, "x-shader/x-fragment");
-        this.shaderInfo = new ShaderInfo(this.gl, this.vertShader, this.fragShader,
-            ["position", "textureCoord"], [3, 2], ["texture", "cdf"]);
-
-        this.histogram = new Uint32Array(HistogramEqualizer.histogramLevel);
-        this.cdf = new Uint8ClampedArray(HistogramEqualizer.histogramLevel);
-        this.cdfTexture = this.gl.createTexture();
-
-        this.gl.enable(this.gl.BLEND);
-        this.gl.enable(this.gl.DEPTH_TEST);
-        this.gl.depthFunc(this.gl.LEQUAL);
-
-        this.planePositionVbo = createVbo(this.gl, 
-            [
-                -1.0, 1.0, 0.0,
-                1.0, 1.0, 0.0,
-                -1.0, -1.0, 0.0,
-                1.0, -1.0, 0.0
-            ]);
-        this.planeTextureCoordVbo = createVbo(this.gl,
-            [
-                0.0, 0.0,
-                1.0, 0.0,
-                0.0, 1.0,
-                1.0, 1.0
-            ]);
-        this.planeIbo = createIbo(this.gl,
-            [
-                0, 2, 1,
-                1, 2, 3
-            ]);
-        this.planeIboLength = 6;
-    }
-
-    calcCDF() {
-        const canvasPixelData 
-            = this.inputCanvasCtx.getImageData(0, 0, this.inputCanvas.width, this.inputCanvas.height);
-        
-        const sourceImagePixelNum 
-            = HistogramEqualizer.samplingWidth * HistogramEqualizer.samplingHeight;
-        for (var idx = 0; idx < HistogramEqualizer.histogramLevel; idx++) {
-            this.histogram[idx] = 0;
+    constructor(inputElementId, outputCanvasIds) {
+        if (HistogramEqualizer.gpu === null || HistogramEqualizer.device === null) {
+            console.error("WebGPU is not initialized.");
+            return;    
         }
-        
-        var mul = HistogramEqualizer.histogramLevel / 256.0;
-        const stepWidth = Math.floor(this.inputCanvas.width / HistogramEqualizer.samplingWidth);
-        const stepHeight = Math.floor(this.inputCanvas.height / HistogramEqualizer.samplingHeight);
 
-        for (var y = 0; y < this.inputCanvas.height; y += stepHeight) {
-            for (var x = 0; x < this.inputCanvas.width; x += stepWidth) {
-                const pixelPos = (y * this.inputCanvas.width + x) * 4;
-                const r = canvasPixelData.data[pixelPos];
-                const g = canvasPixelData.data[pixelPos + 1];
-                const b = canvasPixelData.data[pixelPos + 2];
-                const yValue = 0.299 * r + 0.587 * g + 0.114 * b;
-                this.histogram[(yValue * mul | 0)]++;
+        this.inputElement = document.getElementById(inputElementId);
+        this.outputCanvases = outputCanvasIds.map(id => document.getElementById(id));
+        this.ctxs = this.outputCanvases.map(canvas => canvas.getContext("webgpu"));
+
+        this.inputTexture = HistogramEqualizer.device.createTexture({
+            size: [this.inputElement.width, this.inputElement.height],
+            format: "rgba8unorm",
+            usage: GPUTextureUsage.COPY_DST
+                | GPUTextureUsage.TEXTURE_BINDING
+                | GPUTextureUsage.RENDER_ATTACHMENT
+        });
+
+        this.outputTexture = HistogramEqualizer.device.createTexture({
+            size: [this.inputElement.width, this.inputElement.height],
+            format: "rgba8unorm",
+            usage: GPUTextureUsage.RENDER_ATTACHMENT
+                | GPUTextureUsage.TEXTURE_BINDING
+                | GPUTextureUsage.STORAGE_BINDING
+        });
+
+        this.histBuf = HistogramEqualizer.device.createBuffer({
+            size: HistogramEqualizer.histogramLevel * 4,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+        });
+
+        this.cdfBuf = HistogramEqualizer.device.createBuffer({
+            size: HistogramEqualizer.histogramLevel * 4,
+            usage: GPUBufferUsage.STORAGE
+        });
+
+        this.histPipeline = HistogramEqualizer.device.createComputePipeline({
+            layout: "auto",
+            compute: {
+                module: HistogramEqualizer.device.createShaderModule({
+                    code: histCshaderSrc
+                }),
+                entryPoint: "main"
             }
-        }
-    
-        for (var idx = 1; idx < HistogramEqualizer.histogramLevel; idx++) {
-            this.histogram[idx] = this.histogram[idx - 1] + this.histogram[idx];
-        }
-    
-        mul = 255.0 / sourceImagePixelNum;
-        for (var idx = 0; idx < HistogramEqualizer.histogramLevel; idx++) {
-            this.cdf[idx] = (this.histogram[idx] * mul | 0);
-        }
+        });
 
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.cdfTexture);
-        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.LUMINANCE, HistogramEqualizer.histogramLevel, 1, 0,
-            this.gl.LUMINANCE, this.gl.UNSIGNED_BYTE, this.cdf);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
-        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+        this.histBindGroup = HistogramEqualizer.device.createBindGroup({
+            layout: this.histPipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: this.inputTexture.createView()
+                },
+                {
+                    binding: 1,
+                    resource: { buffer: this.histBuf }
+                }
+            ]
+        });
+
+        this.cdfPipeline = HistogramEqualizer.device.createComputePipeline({
+            layout: "auto",
+            compute: {
+                module: HistogramEqualizer.device.createShaderModule({
+                    code: cdfCshaderSrc
+                }),
+                entryPoint: "main"
+            }
+        });
+
+        this.cdfBindGroup = HistogramEqualizer.device.createBindGroup({
+            layout: this.cdfPipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: { buffer: this.histBuf }
+                },
+                {
+                    binding: 1,
+                    resource: { buffer: this.cdfBuf }
+                }
+            ]
+        });
+
+        this.equalizerPipeline = HistogramEqualizer.device.createComputePipeline({
+            layout: "auto",
+            compute: {
+                module: HistogramEqualizer.device.createShaderModule({
+                    code: equalizerCshaderSrc
+                }),
+                entryPoint: "main"
+            }
+        });
+
+        this.equalizerBindGroup = HistogramEqualizer.device.createBindGroup({
+            layout: this.equalizerPipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: this.inputTexture.createView()
+                },
+                {
+                    binding: 1,
+                    resource: { buffer: this.cdfBuf }
+                },
+                {
+                    binding: 2,
+                    resource: this.outputTexture.createView()
+                }
+            ]
+        });
+
+        this.canvasSizeBuffer = HistogramEqualizer.device.createBuffer({
+            size: 8,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+        const format = HistogramEqualizer.gpu.getPreferredCanvasFormat();
+        this.ctxs.forEach(ctx => {
+            ctx.configure({
+                device: HistogramEqualizer.device,
+                format: format,
+                alphaMode: "opaque"
+            });
+        });
+
+        this.renderPipeline = HistogramEqualizer.device.createRenderPipeline({
+            layout: "auto",
+            vertex: {
+                module: HistogramEqualizer.device.createShaderModule({
+                    code: fullscreenVshaderSrc
+                }),
+                entryPoint: "main"
+            },
+            fragment: {
+                module: HistogramEqualizer.device.createShaderModule({
+                    code: drawTextureFshaderSrc
+                }),
+                entryPoint: "main",
+                targets: [{
+                    format: format
+                }]
+            },
+            primitive: {
+                topology: "triangle-list"
+            }
+        });
+
+        this.sampler = HistogramEqualizer.device.createSampler({
+            magFilter: "linear",
+            minFilter: "linear"
+        });
+
+        this.renderBindGroup = HistogramEqualizer.device.createBindGroup({
+            layout: this.renderPipeline.getBindGroupLayout(0),
+            entries: [
+                {
+                    binding: 0,
+                    resource: this.outputTexture.createView()
+                },
+                {
+                    binding: 1,
+                    resource: this.sampler
+                },
+                {
+                    binding: 2,
+                    resource: { buffer: this.canvasSizeBuffer }
+                }
+            ]
+        });
+
     }
 
     apply() {
-        this.inputTexture.redraw();
-        this.calcCDF();
-
-        this.gl.viewport(0, 0, this.outputCanvas.width, this.outputCanvas.height);
-        this.gl.blendFuncSeparate(this.gl.SRC_ALPHA, this.gl.ONE_MINUS_SRC_ALPHA, this.gl.ONE, this.gl.ONE);
-        this.gl.clearColor(0.0, 0.0, 0.0, 0.0);
-        this.gl.clearDepth(1.0);
-        this.gl.clear(this.gl.COLOR_BUFFER_BIT | this.gl.DEPTH_BUFFER_BIT);
-
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.planePositionVbo);
-        this.shaderInfo.enableAttribute(0);
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.planeTextureCoordVbo);
-        this.shaderInfo.enableAttribute(1);
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.planeIbo);
-
-        this.gl.useProgram(this.shaderInfo.program);
-
-        this.gl.activeTexture(this.gl.TEXTURE0);
-		this.gl.bindTexture(this.gl.TEXTURE_2D, this.inputTexture.texId);
-        this.gl.activeTexture(this.gl.TEXTURE1);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, this.cdfTexture);
-
-    	this.gl.uniform1i(this.shaderInfo.uniLocation[0], 0);
-        this.gl.uniform1i(this.shaderInfo.uniLocation[1], 1);
-
-        this.gl.drawElements(this.gl.TRIANGLES, this.planeIboLength, this.gl.UNSIGNED_SHORT, 0);
+        HistogramEqualizer.device.queue.copyExternalImageToTexture(
+            { source: this.inputElement },
+            { texture: this.inputTexture },
+            [this.inputElement.width, this.inputElement.height]
+        );
         
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, null);
-        this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, null);
-        this.gl.activeTexture(this.gl.TEXTURE0);
-        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
-        this.gl.activeTexture(this.gl.TEXTURE1);
-		this.gl.bindTexture(this.gl.TEXTURE_2D, null);
+        HistogramEqualizer.device.queue.writeBuffer(this.histBuf, 0,
+            new Uint32Array(HistogramEqualizer.histogramLevel));
+
+        const encoder = HistogramEqualizer.device.createCommandEncoder();
+        {
+            const pass = encoder.beginComputePass();
+            pass.setPipeline(this.histPipeline);
+            pass.setBindGroup(0, this.histBindGroup);
+            pass.dispatchWorkgroups(Math.ceil(this.inputElement.width / 16), 
+                Math.ceil(this.inputElement.height / 16));
+            pass.end();
+        }
+
+        {
+            const pass = encoder.beginComputePass();
+            pass.setPipeline(this.cdfPipeline);
+            pass.setBindGroup(0, this.cdfBindGroup);
+            pass.dispatchWorkgroups(1);
+            pass.end();
+        }
+
+        {
+            const pass = encoder.beginComputePass();
+            pass.setPipeline(this.equalizerPipeline);
+            pass.setBindGroup(0, this.equalizerBindGroup);
+            pass.dispatchWorkgroups(Math.ceil(this.inputElement.width / 16), 
+                Math.ceil(this.inputElement.height / 16));
+            pass.end();
+        }
+
+        HistogramEqualizer.device.queue.submit([encoder.finish()]);
+
+        for (let i = 0; i < this.outputCanvases.length; i++) {
+            HistogramEqualizer.device.queue.writeBuffer(
+                this.canvasSizeBuffer, 0,
+                new Float32Array([
+                    this.outputCanvases[i].width,
+                    this.outputCanvases[i].height
+                ])
+            );
+
+            const renderEncoder = HistogramEqualizer.device.createCommandEncoder();
+            const pass = renderEncoder.beginRenderPass({
+                colorAttachments: [{
+                    view: this.ctxs[i].getCurrentTexture().createView(),
+                    clearValue: [0, 0, 0, 1],
+                    loadOp: "clear",
+                    storeOp: "store"
+                }]
+            });
+            pass.setPipeline(this.renderPipeline);
+            pass.setBindGroup(0, this.renderBindGroup);
+            pass.draw(3);
+            pass.end();
+
+            HistogramEqualizer.device.queue.submit([renderEncoder.finish()]);
+        }
     } 
 }
 
 HistogramEqualizer.histogramLevel = 256;
 HistogramEqualizer.samplingWidth = 256;
 HistogramEqualizer.samplingHeight = 256;
+HistogramEqualizer.gpu = null;
+HistogramEqualizer.device = null;
+HistogramEqualizer.webgpuInit = async function() {
+    HistogramEqualizer.gpu = navigator.gpu;
+    if (!HistogramEqualizer.gpu) {
+        console.error("WebGPU is not supported in this browser.");
+        return;
+    }
+
+    const adapter = await HistogramEqualizer.gpu.requestAdapter();
+    HistogramEqualizer.device = await adapter.requestDevice();
+};
