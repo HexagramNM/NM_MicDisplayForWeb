@@ -340,7 +340,8 @@ export class NM_MicDisplayStarter {
             this.sharedWindowMng = new SharedWindowManager()
         }
 
-        this.micDisplayWorker = new Worker(new URL(`./../workerModules/NM_MicDisplayWorker.js`, import.meta.url),
+        this.micDisplayWorker = new Worker(
+            new URL(`./../workerModules/NM_MicDisplayWorker.js?v=${Date.now()}`, import.meta.url),
             {type: "module"});
         this.eventMng = new NM_MicDisplayEvent(this.virtualBackImageProc,
             this.sharedWindowMng, this.micDisplayWorker);

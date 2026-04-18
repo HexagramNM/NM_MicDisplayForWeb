@@ -65,7 +65,7 @@ self.onmessage = (e) => {
         if (micDisplay == null || micDisplay.virtualBack == null) {
             return;
         }
-        micDisplay.virtualBack.updateTexture(e.data.bitmap);
+        micDisplay.virtualBack.update(e.data.bitmap);
     }
     else if (e.data.type === "updateSharedWindowImage") {
         if (micDisplay == null || micDisplay.sharedWindow == null) {

@@ -124,10 +124,6 @@ export class NM_MicDisplay {
 		this.magicCircle.update();
 		this.micSoundWave.update();
 
-		if (this.virtualBack != null) {
-			this.virtualBack.update();
-		}
-
 		this.draw();
 	}
 }

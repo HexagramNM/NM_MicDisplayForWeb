@@ -45,6 +45,7 @@ export class MicEmitWave {
 
         if (this.micSigMng.pulseEmit) {
             //発射登録
+            this.micSigMng.pulseEmit = false;
             for (var emitIdx = 0; emitIdx < MicEmitWave.emitWaveNum; emitIdx++) {
                 if (!this.emitWaveIsDisplay[emitIdx]) {
                     this.emitWaveIsDisplay[emitIdx] = true;

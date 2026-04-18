@@ -30,11 +30,8 @@ export class VirtualBack {
             textureSize, inputWidth, inputHeight);
     }
 
-    updateTexture(bitmap) {
+    update(bitmap) {
         this.inputTexture.redraw(bitmap);
-    }
-
-    update() {
         this.effector.applyEffect();
         this.outlineTexture.generateOutline(16, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0);
     }
