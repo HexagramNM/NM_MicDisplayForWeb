@@ -1,8 +1,10 @@
-import {
-    ImageTexture,
-    PlaneBuffer
-} from "./createWebGLObj.js";
-import {matIV} from "./minMatrix.js";
+
+import { workerVersion } from "./workerVersion.js";
+
+const matIV = (await import(`./minMatrix.js?v=${workerVersion}`)).matIV;
+const createWebGLObj = await import(`./createWebGLObj.js?v=${workerVersion}`);
+const ImageTexture = createWebGLObj.ImageTexture;
+const PlaneBuffer = createWebGLObj.PlaneBuffer;
 
 export class MicEmitWave {
     constructor(gl, micSigMng, normalShaderInfo) {
@@ -20,7 +22,7 @@ export class MicEmitWave {
         }
 
         this.wavTexture = new ImageTexture(this.gl,
-            "image/redCircleWave.png?" + new Date().getTime());
+            "./../image/redCircleWave.png?" + new Date().getTime());
         this.mMatrix = MicEmitWave.mat.identity(MicEmitWave.mat.create());
         this.mvpMatrix = MicEmitWave.mat.identity(MicEmitWave.mat.create());
     }

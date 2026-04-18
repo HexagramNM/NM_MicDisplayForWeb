@@ -1,36 +1,40 @@
-import {
-    CanvasTexture,
-    PlaneBuffer
-} from "./createWebGLObj.js";
-import {matIV} from "./minMatrix.js";
-import { OutlineTextureGenerator } from "./outlineTextureGenerator.js";
-import {VirtualBackEffector} from "./virtualBackEffector.js";
+
+import { workerVersion } from "./workerVersion.js";
+
+const matIV = (await import(`./minMatrix.js?v=${workerVersion}`)).matIV;
+const createWebGLObj = await import(`./createWebGLObj.js?v=${workerVersion}`);
+const BitmapTexture = createWebGLObj.BitmapTexture;
+const PlaneBuffer = createWebGLObj.PlaneBuffer;
+const OutlineTextureGenerator = (await import(`./outlineTextureGenerator.js?v=${workerVersion}`)).OutlineTextureGenerator;
+const VirtualBackEffector = (await import(`./virtualBackEffector.js?v=${workerVersion}`)).VirtualBackEffector;
 
 export class VirtualBack {
-    constructor(gl, width, height, virtualBackShaderInfo) {
+    constructor(gl, inputWidth, inputHeight, textureSize, virtualBackShaderInfo) {
         this.gl = gl;
         this.virtualBackShaderInfo = virtualBackShaderInfo;
-        this.virtualBackTexture = new CanvasTexture(this.gl, "virtualBackTexture");
-        const virtualBackTextureSize = document.getElementById("virtualBackTexture").width;
+        this.inputTexture = new BitmapTexture(gl);
 
         this.mMatrix = VirtualBack.mat.identity(VirtualBack.mat.create());
         this.mvpMatrix = VirtualBack.mat.identity(VirtualBack.mat.create());
         
         this.aspect = 0.0;
-        if (width > 0.0) {
-            this.aspect = height / width;
+        if (inputWidth > 0.0) {
+            this.aspect = inputHeight / inputWidth;
         }
 
         this.effector = new VirtualBackEffector(
-            this.gl, this.virtualBackTexture.texId, virtualBackTextureSize);
+            this.gl, this.inputTexture.texId, textureSize);
 
         this.outlineTexture = new OutlineTextureGenerator(
             this.gl, this.effector.getOutputTexture(),
-            virtualBackTextureSize, width, height);
+            textureSize, inputWidth, inputHeight);
+    }
+
+    updateTexture(bitmap) {
+        this.inputTexture.redraw(bitmap);
     }
 
     update() {
-        this.virtualBackTexture.redraw();
         this.effector.applyEffect();
         this.outlineTexture.generateOutline(16, 0.5, [0.8, 1.0, 1.0], [0.0, 0.0, 1.0], 1.0);
     }

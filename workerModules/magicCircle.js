@@ -1,8 +1,9 @@
-import {
-    ImageTexture,
-    PlaneBuffer
-} from "./createWebGLObj.js";
-import {matIV} from "./minMatrix.js";
+import { workerVersion } from "./workerVersion.js";
+
+const matIV = (await import(`./minMatrix.js?v=${workerVersion}`)).matIV;
+const createWebGLObj = await import(`./createWebGLObj.js?v=${workerVersion}`);
+const ImageTexture = createWebGLObj.ImageTexture;
+const PlaneBuffer = createWebGLObj.PlaneBuffer;
 
 export class MagicCircle {
     constructor(gl, micSigMng, normalShaderInfo) {
@@ -16,10 +17,10 @@ export class MagicCircle {
         this.previousTimeStamp = performance.now();
 
         this.circleTexture = new ImageTexture(this.gl,
-            "image/redCircle.png?" + new Date().getTime());
+            "./../image/redCircle.png?" + new Date().getTime());
 
         this.circleLightTexture = new ImageTexture(this.gl,
-            "image/redCircleLight.png?" + new Date().getTime());
+            "./../image/redCircleLight.png?" + new Date().getTime());
 
         this.mMatrix = MagicCircle.mat.identity(MagicCircle.mat.create());
         this.mvpMatrix = MagicCircle.mat.identity(MagicCircle.mat.create());
@@ -54,7 +55,7 @@ export class MagicCircle {
         this.normalShaderInfo.enableAttribute(2);
         this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, PlaneBuffer.ibo);
     
-        const rad = (this.count - Math.floor(this.count / 360.0) * 360.0) * Math.PI / 180;
+        const rad = (this.count - Math.floor(this.count / 720.0) * 720.0) * Math.PI / 360.0;
         MagicCircle.mat.identity(this.mMatrix);
         MagicCircle.mat.rotate(this.mMatrix, rad, [0.0, 1.0, 0.0], this.mMatrix);
         MagicCircle.mat.rotate(this.mMatrix, Math.PI / 2.0, [1.0, 0.0, 0.0], this.mMatrix);
@@ -88,4 +89,4 @@ export class MagicCircle {
 
 MagicCircle.mat = new matIV();
 MagicCircle.circleRadius = 13.0;
-MagicCircle.fps = 30.0;
+MagicCircle.fps = 60.0;

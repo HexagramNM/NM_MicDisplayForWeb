@@ -1,19 +1,23 @@
-import {PlaneBuffer} from "./createWebGLObj.js";
-import {NM_MicDisplay} from "./NM_MicDisplay.js";
-import {SharedWindowManager} from "./sharedWindowManager.js";
-import {VirtualBackImageProcessor} from "./virtualBackImageProcessor.js";
+
+import { WebGpuDevice } from "./webGpuDevice.js";
+import { MicSignalManager } from "./micSignalManager.js";
+import { SharedWindowManager } from "./sharedWindowManager.js";
+import { VirtualBackImageProcessor } from "./virtualBackImageProcessor.js";
+import { NM_MicDisplayEvent } from "./NM_MicDisplayEvent.js";
 
 export class NM_MicDisplayStarter {
     constructor() {
-        this.micDisplay = null;
+        this.micDisplayWorker = null;
         this.cameraDeviceLists = [];
         this.noCamera = false;
         this.selectedCameraDeviceId = null;
         this.micDeviceLists = [];
         this.selectedMicDeviceId = null;
 
+        this.micSigMng = null;
         this.virtualBackImageProc = null;
         this.sharedWindowMng = null;
+        this.eventMng = null;
         this.hasShareWindow = false;
     }
 
@@ -299,14 +303,7 @@ export class NM_MicDisplayStarter {
         return [videoStream, audioStream];
     }
 
-    toggleMirror() {
-        this.virtualBackImageProc.toggleMirror();
-        //右クリックによるメニューを抑制
-        return false;
-    }
-
     async startProcess() {
-        document.oncontextmenu = () => { return this.toggleMirror(); };
         document.getElementById("easyInst").style.display = "none";
         this.saveOption("cameraSelect");
         this.saveOption("micSelect");
@@ -331,39 +328,38 @@ export class NM_MicDisplayStarter {
         const blazePoseModelTypeIdx = blazePoseNodelTypeForm.selectedIndex;
         const blazePoseModelType = blazePoseNodelTypeForm.options[blazePoseModelTypeIdx].value;
 
-        const c = document.getElementById('NM_MicDisplayOutput');
-        if (!c || !(c.getContext)) {
-            return;
-        }
-        const gl = c.getContext('webgl') || c.getContext('experimental-webgl');
-        const extNames = [
-            'OES_texture_float',
-            'OES_texture_float_linear',
-            'EXT_float_blend',
-            'WEBGL_color_buffer_float'
-        ];
-        for (var i = 0; i < extNames.length; i++) {
-            const ext = gl.getExtension(extNames[i]);
-            if (!ext) {
-                return;
-            }
-        }
+        this.micSigMng = new MicSignalManager(micDisplayAudioStream);
 
-        PlaneBuffer.init(gl);
-
-        this.virtualBackImageProc = new VirtualBackImageProcessor(gl,
+        await WebGpuDevice.webgpuInit();
+        this.virtualBackImageProc = new VirtualBackImageProcessor(
             micDisplayVideoStream, blazePoseModelType);
-        await this.virtualBackImageProc.startBlazePose();
-        await this.prepareSharedWindowStream();
+        await this.virtualBackImageProc.initBlazePose();
 
+        await this.prepareSharedWindowStream();
         if (this.hasShareWindow) {
             this.sharedWindowMng = new SharedWindowManager()
         }
 
-        this.micDisplay = new NM_MicDisplay(gl, micDisplayAudioStream,
-            this.sharedWindowMng, this.virtualBackImageProc);
-        await this.micDisplay.waitForTextureLoading();
-        requestAnimationFrame(() => { this.main(); });
+        this.micDisplayWorker = new Worker(new URL(`./../workerModules/NM_MicDisplayWorker.js`, import.meta.url),
+            {type: "module"});
+        this.eventMng = new NM_MicDisplayEvent(this.virtualBackImageProc,
+            this.sharedWindowMng, this.micDisplayWorker);
+
+        const canvas = document.getElementById('NM_MicDisplayOutput');
+        const offscreen = canvas.transferControlToOffscreen();
+        const micSignalData = this.micSigMng.getSignalData();
+        this.micDisplayWorker.postMessage({
+            type: "init",
+            canvas: offscreen,
+            micSignalData: micSignalData,
+            hasVirtualBack: this.virtualBackImageProc.hasVirtualBack,
+            virtualBackInputWidth: this.virtualBackImageProc.originalSize.width,
+            virtualBackInputHeight: this.virtualBackImageProc.originalSize.height,
+            virtualBackTextureSize: VirtualBackImageProcessor.virtualBackTextureSize,
+            hasSharedWindow: this.hasShareWindow
+        }, [offscreen]);
+
+        this.main();
     }
 
     saveOption(selectElementId) {
@@ -388,22 +384,46 @@ export class NM_MicDisplayStarter {
     }
 
     async main() {
-        const start = performance.now();
         const oneFrameTime = 1000.0 / 30.0;
-        this.virtualBackImageProc.preprocess();
-        await this.virtualBackImageProc.drawTextureCanvas();
+        setTimeout(() => { this.main(); }, oneFrameTime);
+
+        this.eventMng.adjustCanvasSize(false);
         if (this.sharedWindowMng != null) {
             this.sharedWindowMng.draw();
+            this.sharedWindowMng.updateTextureCanvas();
+            await createImageBitmap(this.sharedWindowMng.getOutputTextureCanvas())
+                .then(sharedWindowBitmap => {
+                    this.micDisplayWorker.postMessage({
+                        type: "updateSharedWindowImage",
+                        bitmap: sharedWindowBitmap,
+                        width: this.sharedWindowMng.trimmedSize.width,
+                        height: this.sharedWindowMng.trimmedSize.height,
+                        windowShareBackEnable: this.sharedWindowMng.windowShareBackEnable
+                    }, [sharedWindowBitmap]);
+                })
+                .catch(err => {
+                    console.error("Failed to create shared window bitmap:", err);
+                });
         }
-        this.micDisplay.main();
-        await this.virtualBackImageProc.postprocess();
-        const elapsed = performance.now() - start;
 
-        if (elapsed < oneFrameTime) {
-            setTimeout(() => {requestAnimationFrame(() => { this.main(); });}, oneFrameTime - elapsed);
+        if (this.virtualBackImageProc.hasVirtualBack) {
+            await this.virtualBackImageProc.processFrame();
+            await createImageBitmap(this.virtualBackImageProc.getOutputTextureCanvas())
+                .then(virtualBackBitmap => {
+                    this.micDisplayWorker.postMessage({
+                        type: "updateVirtualBackImage",
+                        bitmap: virtualBackBitmap
+                    }, [virtualBackBitmap]);
+                })
+                .catch(err => {
+                    console.error("Failed to create virtual back bitmap:", err);
+                });
         }
-        else {
-            requestAnimationFrame(() => { this.main(); });
-        }
+
+        this.micSigMng.update();
+        const micSignalData = this.micSigMng.getSignalData();
+        this.micDisplayWorker.postMessage({
+            type: "updateMicSignalData",
+            micSignalData: micSignalData});
     }
 }

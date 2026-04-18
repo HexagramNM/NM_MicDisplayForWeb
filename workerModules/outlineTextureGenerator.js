@@ -1,12 +1,14 @@
-import {
-    createShader,
-    ShaderInfo,
-    PlaneBuffer
-} from "./createWebGLObj.js";
-import imageVshaderSrc from "./../shaders/imageVshader.vert.js";
-import binarizationFshaderSrc from "./../shaders/binarizationFshader.frag.js";
-import jfaForCreatingSdfFshaderSrc from "./../shaders/jfaForCreatingSdfFshader.frag.js";
-import outlineFshaderSrc from "./../shaders/outlineFshader.frag.js";
+
+import { workerVersion } from "./workerVersion.js";
+
+const createWebGLObj = await import(`./createWebGLObj.js?v=${workerVersion}`);
+const createShader = createWebGLObj.createShader;
+const ShaderInfo = createWebGLObj.ShaderInfo;
+const PlaneBuffer = createWebGLObj.PlaneBuffer;
+const imageVshaderSrc = (await import(`./../shaders/imageVshader.vert.js?v=${workerVersion}`)).default;
+const binarizationFshaderSrc = (await import(`./../shaders/binarizationFshader.frag.js?v=${workerVersion}`)).default;
+const jfaForCreatingSdfFshaderSrc = (await import(`./../shaders/jfaForCreatingSdfFshader.frag.js?v=${workerVersion}`)).default;
+const outlineFshaderSrc = (await import(`./../shaders/outlineFshader.frag.js?v=${workerVersion}`)).default;
 
 export class OutlineTextureGenerator {
     constructor(gl, sourceTexture, textureSize, originalWidth, originalHeight) {

@@ -21,41 +21,35 @@ export function createIbo(gl, data) {
 
 export class ImageTexture {
     constructor(gl, source) {
+        this.gl = gl;
         this.texId = gl.createTexture();
-
-        const img = new Image();
-        this.loader = new Promise((resolve) => {
-            img.onload = () => {
-                gl.bindTexture(gl.TEXTURE_2D, this.texId);
-                gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-                gl.generateMipmap(gl.TEXTURE_2D);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST_MIPMAP_LINEAR);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-                gl.bindTexture(gl.TEXTURE_2D, null);
-                resolve();
-            }
-            img.src = source;
-        });
+        this.source = source;
     }
 
     async waitForLoad() {
-        await this.loader;
+        const response = await fetch(this.source);
+        const blob = await response.blob();
+        const bitmap = await createImageBitmap(blob);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.texId);
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, bitmap);
+        this.gl.generateMipmap(this.gl.TEXTURE_2D);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST_MIPMAP_LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, null);
     }
 }
 
-export class CanvasTexture {
-    constructor(gl, canvasId) {
-        this.sourceCanvas = document.getElementById(canvasId);
+export class BitmapTexture {
+    constructor(gl) {
         this.gl = gl;
         this.texId = gl.createTexture();
-        this.redraw();
     }
 
-    redraw() {
+    redraw(bitmap) {
         this.gl.bindTexture(this.gl.TEXTURE_2D, this.texId);
-        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, this.sourceCanvas);
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, bitmap);
         this.gl.generateMipmap(this.gl.TEXTURE_2D);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.NEAREST_MIPMAP_LINEAR);
         this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);

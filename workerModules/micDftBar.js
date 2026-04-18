@@ -1,9 +1,11 @@
-import {
-    createVbo,
-	createIbo,
-    PlaneBuffer
-} from "./createWebGLObj.js";
-import {matIV} from "./minMatrix.js";
+
+import { workerVersion } from "./workerVersion.js";
+
+const matIV = (await import(`./minMatrix.js?v=${workerVersion}`)).matIV;
+const createWebGLObj = await import(`./createWebGLObj.js?v=${workerVersion}`);
+const createVbo = createWebGLObj.createVbo;
+const createIbo = createWebGLObj.createIbo;
+const PlaneBuffer = createWebGLObj.PlaneBuffer;
 
 export class MicDftBar {
     constructor(gl, micSigMng, normalShaderInfo, circleRadius) {

@@ -1,4 +1,5 @@
 
+import { WebGpuDevice } from "./webGpuDevice.js";
 import histCshaderSrc from "../shaders/webgpu_createHistogram.comp.js";
 import cdfCshaderSrc from "../shaders/webgpu_calcCdf.comp.js";
 import equalizerCshaderSrc from "../shaders/webgpu_histogramEqualizer.comp.js";
@@ -6,53 +7,51 @@ import fullscreenVshaderSrc from "../shaders/webgpu_fullScreenTriangle.vert.js";
 import drawTextureFshaderSrc from "../shaders/webgpu_drawTexture.frag.js";
 
 export class HistogramEqualizer {
-    constructor(inputElementId, outputCanvasIds) {
-        if (HistogramEqualizer.gpu === null || HistogramEqualizer.device === null) {
+    constructor(inputWidth, inputHeight) {
+        if (WebGpuDevice.gpu === null || WebGpuDevice.device === null) {
             console.error("WebGPU is not initialized.");
             return;    
         }
 
-        this.inputElement = document.getElementById(inputElementId);
-        this.outputCanvases = outputCanvasIds.map(id => document.getElementById(id));
-        this.ctxs = this.outputCanvases.map(canvas => canvas.getContext("webgpu"));
-
-        this.inputTexture = HistogramEqualizer.device.createTexture({
-            size: [this.inputElement.width, this.inputElement.height],
+        this.inputWidth = inputWidth;
+        this.inputHeight = inputHeight;
+        this.inputTexture = WebGpuDevice.device.createTexture({
+            size: [inputWidth, inputHeight],
             format: "rgba8unorm",
             usage: GPUTextureUsage.COPY_DST
                 | GPUTextureUsage.TEXTURE_BINDING
                 | GPUTextureUsage.RENDER_ATTACHMENT
         });
 
-        this.outputTexture = HistogramEqualizer.device.createTexture({
-            size: [this.inputElement.width, this.inputElement.height],
+        this.outputTexture = WebGpuDevice.device.createTexture({
+            size: [inputWidth, inputHeight],
             format: "rgba8unorm",
             usage: GPUTextureUsage.RENDER_ATTACHMENT
                 | GPUTextureUsage.TEXTURE_BINDING
                 | GPUTextureUsage.STORAGE_BINDING
         });
 
-        this.histBuf = HistogramEqualizer.device.createBuffer({
+        this.histBuf = WebGpuDevice.device.createBuffer({
             size: HistogramEqualizer.histogramLevel * 4,
             usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
         });
 
-        this.cdfBuf = HistogramEqualizer.device.createBuffer({
+        this.cdfBuf = WebGpuDevice.device.createBuffer({
             size: HistogramEqualizer.histogramLevel * 4,
             usage: GPUBufferUsage.STORAGE
         });
 
-        this.histPipeline = HistogramEqualizer.device.createComputePipeline({
+        this.histPipeline = WebGpuDevice.device.createComputePipeline({
             layout: "auto",
             compute: {
-                module: HistogramEqualizer.device.createShaderModule({
+                module: WebGpuDevice.device.createShaderModule({
                     code: histCshaderSrc
                 }),
                 entryPoint: "main"
             }
         });
 
-        this.histBindGroup = HistogramEqualizer.device.createBindGroup({
+        this.histBindGroup = WebGpuDevice.device.createBindGroup({
             layout: this.histPipeline.getBindGroupLayout(0),
             entries: [
                 {
@@ -66,17 +65,17 @@ export class HistogramEqualizer {
             ]
         });
 
-        this.cdfPipeline = HistogramEqualizer.device.createComputePipeline({
+        this.cdfPipeline = WebGpuDevice.device.createComputePipeline({
             layout: "auto",
             compute: {
-                module: HistogramEqualizer.device.createShaderModule({
+                module: WebGpuDevice.device.createShaderModule({
                     code: cdfCshaderSrc
                 }),
                 entryPoint: "main"
             }
         });
 
-        this.cdfBindGroup = HistogramEqualizer.device.createBindGroup({
+        this.cdfBindGroup = WebGpuDevice.device.createBindGroup({
             layout: this.cdfPipeline.getBindGroupLayout(0),
             entries: [
                 {
@@ -90,17 +89,17 @@ export class HistogramEqualizer {
             ]
         });
 
-        this.equalizerPipeline = HistogramEqualizer.device.createComputePipeline({
+        this.equalizerPipeline = WebGpuDevice.device.createComputePipeline({
             layout: "auto",
             compute: {
-                module: HistogramEqualizer.device.createShaderModule({
+                module: WebGpuDevice.device.createShaderModule({
                     code: equalizerCshaderSrc
                 }),
                 entryPoint: "main"
             }
         });
 
-        this.equalizerBindGroup = HistogramEqualizer.device.createBindGroup({
+        this.equalizerBindGroup = WebGpuDevice.device.createBindGroup({
             layout: this.equalizerPipeline.getBindGroupLayout(0),
             entries: [
                 {
@@ -118,30 +117,22 @@ export class HistogramEqualizer {
             ]
         });
 
-        this.canvasSizeBuffer = HistogramEqualizer.device.createBuffer({
+        this.canvasSizeBuffer = WebGpuDevice.device.createBuffer({
             size: 8,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
 
-        const format = HistogramEqualizer.gpu.getPreferredCanvasFormat();
-        this.ctxs.forEach(ctx => {
-            ctx.configure({
-                device: HistogramEqualizer.device,
-                format: format,
-                alphaMode: "opaque"
-            });
-        });
-
-        this.renderPipeline = HistogramEqualizer.device.createRenderPipeline({
+        const format = WebGpuDevice.gpu.getPreferredCanvasFormat();
+        this.renderPipeline = WebGpuDevice.device.createRenderPipeline({
             layout: "auto",
             vertex: {
-                module: HistogramEqualizer.device.createShaderModule({
+                module: WebGpuDevice.device.createShaderModule({
                     code: fullscreenVshaderSrc
                 }),
                 entryPoint: "main"
             },
             fragment: {
-                module: HistogramEqualizer.device.createShaderModule({
+                module: WebGpuDevice.device.createShaderModule({
                     code: drawTextureFshaderSrc
                 }),
                 entryPoint: "main",
@@ -154,12 +145,12 @@ export class HistogramEqualizer {
             }
         });
 
-        this.sampler = HistogramEqualizer.device.createSampler({
+        this.sampler = WebGpuDevice.device.createSampler({
             magFilter: "linear",
             minFilter: "linear"
         });
 
-        this.renderBindGroup = HistogramEqualizer.device.createBindGroup({
+        this.renderBindGroup = WebGpuDevice.device.createBindGroup({
             layout: this.renderPipeline.getBindGroupLayout(0),
             entries: [
                 {
@@ -176,26 +167,25 @@ export class HistogramEqualizer {
                 }
             ]
         });
-
     }
 
-    apply() {
-        HistogramEqualizer.device.queue.copyExternalImageToTexture(
-            { source: this.inputElement },
+    apply(inputImage, outputCanvases) {
+            WebGpuDevice.device.queue.copyExternalImageToTexture(
+            { source: inputImage },
             { texture: this.inputTexture },
-            [this.inputElement.width, this.inputElement.height]
+            [this.inputWidth, this.inputHeight]
         );
         
-        HistogramEqualizer.device.queue.writeBuffer(this.histBuf, 0,
+        WebGpuDevice.device.queue.writeBuffer(this.histBuf, 0,
             new Uint32Array(HistogramEqualizer.histogramLevel));
 
-        const encoder = HistogramEqualizer.device.createCommandEncoder();
+        const encoder = WebGpuDevice.device.createCommandEncoder();
         {
             const pass = encoder.beginComputePass();
             pass.setPipeline(this.histPipeline);
             pass.setBindGroup(0, this.histBindGroup);
-            pass.dispatchWorkgroups(Math.ceil(this.inputElement.width / 16), 
-                Math.ceil(this.inputElement.height / 16));
+            pass.dispatchWorkgroups(Math.ceil(this.inputWidth / 16), 
+                Math.ceil(this.inputHeight / 16));
             pass.end();
         }
 
@@ -211,26 +201,34 @@ export class HistogramEqualizer {
             const pass = encoder.beginComputePass();
             pass.setPipeline(this.equalizerPipeline);
             pass.setBindGroup(0, this.equalizerBindGroup);
-            pass.dispatchWorkgroups(Math.ceil(this.inputElement.width / 16), 
-                Math.ceil(this.inputElement.height / 16));
+            pass.dispatchWorkgroups(Math.ceil(this.inputWidth / 16), 
+                Math.ceil(this.inputHeight / 16));
             pass.end();
         }
 
-        HistogramEqualizer.device.queue.submit([encoder.finish()]);
+        WebGpuDevice.device.queue.submit([encoder.finish()]);
 
-        for (let i = 0; i < this.outputCanvases.length; i++) {
-            HistogramEqualizer.device.queue.writeBuffer(
+        const format = WebGpuDevice.gpu.getPreferredCanvasFormat();
+        for (let i = 0; i < outputCanvases.length; i++) {
+            const ctx = outputCanvases[i].getContext("webgpu");
+            ctx.configure({
+                device: WebGpuDevice.device,
+                format: format,
+                alphaMode: "opaque"
+            });
+
+            WebGpuDevice.device.queue.writeBuffer(
                 this.canvasSizeBuffer, 0,
                 new Float32Array([
-                    this.outputCanvases[i].width,
-                    this.outputCanvases[i].height
+                    outputCanvases[i].width,
+                    outputCanvases[i].height
                 ])
             );
 
-            const renderEncoder = HistogramEqualizer.device.createCommandEncoder();
+            const renderEncoder = WebGpuDevice.device.createCommandEncoder();
             const pass = renderEncoder.beginRenderPass({
                 colorAttachments: [{
-                    view: this.ctxs[i].getCurrentTexture().createView(),
+                    view: ctx.getCurrentTexture().createView(),
                     clearValue: [0, 0, 0, 1],
                     loadOp: "clear",
                     storeOp: "store"
@@ -241,23 +239,13 @@ export class HistogramEqualizer {
             pass.draw(3);
             pass.end();
 
-            HistogramEqualizer.device.queue.submit([renderEncoder.finish()]);
+            WebGpuDevice.device.queue.submit([renderEncoder.finish()]);
         }
     } 
+
+    getOutputWebGPUTexture() {
+        return this.outputTexture;
+    }
 }
 
 HistogramEqualizer.histogramLevel = 256;
-HistogramEqualizer.samplingWidth = 256;
-HistogramEqualizer.samplingHeight = 256;
-HistogramEqualizer.gpu = null;
-HistogramEqualizer.device = null;
-HistogramEqualizer.webgpuInit = async function() {
-    HistogramEqualizer.gpu = navigator.gpu;
-    if (!HistogramEqualizer.gpu) {
-        console.error("WebGPU is not supported in this browser.");
-        return;
-    }
-
-    const adapter = await HistogramEqualizer.gpu.requestAdapter();
-    HistogramEqualizer.device = await adapter.requestDevice();
-};

@@ -7,6 +7,10 @@ export class SharedWindowManager {
         this.trimmingMode = false;
         this.windowShareBackEnable = false;
         this.previousMousePos = [null, null];
+        this.trimmedSize = {width: 1920, height: 1080};
+        this.textureCanvas = new OffscreenCanvas(
+            SharedWindowManager.textureSize, SharedWindowManager.textureSize);
+        this.textureCanvasCtx = this.textureCanvas.getContext("2d");
 
         document.addEventListener("keyup", (e) => this.keyUpEvent(e));
         document.addEventListener("mousedown", (e) => this.mouseDownEvent(e));
@@ -105,6 +109,36 @@ export class SharedWindowManager {
             + rightPixel.toString() + "px " + topPixel.toString() + "px, "
             + rightPixel.toString() + "px " + bottomPixel.toString() + "px, "
             + leftPixel.toString() + "px " + bottomPixel.toString() + "px)";
+    }
+
+    updateTextureCanvas() {
+        const virtualShareWindowVideo = document.getElementById("virtualShareWindowVideo");
+		const virtualShareWindowWidthOffset = virtualShareWindowVideo.width 
+			* this.videoPercentRangeInWindowShareMode[0][0] / 100.0;
+		const virtualShareWindowWidthRange = virtualShareWindowVideo.width
+			* (this.videoPercentRangeInWindowShareMode[0][1]
+			- this.videoPercentRangeInWindowShareMode[0][0]) / 100.0;
+		const virtualShareWindowHeightOffset = virtualShareWindowVideo.height
+			* this.videoPercentRangeInWindowShareMode[1][0] / 100.0;
+		const virtualShareWindowHeightRange = virtualShareWindowVideo.height
+			* (this.videoPercentRangeInWindowShareMode[1][1]
+			- this.videoPercentRangeInWindowShareMode[1][0]) / 100.0;
+
+		virtualShareWindowVideo.width = virtualShareWindowVideo.videoWidth;
+		virtualShareWindowVideo.height = virtualShareWindowVideo.videoHeight;
+		this.trimmedSize.width = virtualShareWindowWidthRange;
+		this.trimmedSize.height = virtualShareWindowHeightRange;
+
+		if (this.trimmedSize.width <= 0
+			|| this.trimmedSize.height <= 0) {
+			
+			return;
+		}
+
+		this.textureCanvasCtx.drawImage(virtualShareWindowVideo,
+			virtualShareWindowWidthOffset, virtualShareWindowHeightOffset,
+			virtualShareWindowWidthRange, virtualShareWindowHeightRange,
+			0, 0, SharedWindowManager.textureSize, SharedWindowManager.textureSize);
     }
 
     keyUpEvent(event) {
@@ -211,4 +245,10 @@ export class SharedWindowManager {
             document.getElementById("underBackground").style.visibility = "hidden";
         }
     }
+
+    getOutputTextureCanvas() {
+        return this.textureCanvas;
+    }
 }
+
+SharedWindowManager.textureSize = 512;

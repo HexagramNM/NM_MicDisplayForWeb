@@ -82,4 +82,17 @@ export class MicSignalManager {
             }
         }
     }
+
+    getSignalData() {
+        return {
+            currentWaveLevel: this.currentWaveLevel,
+            soundDisplayLength: this.soundDisplayLength,
+            waveDataFloat: this.waveDataFloat,
+            dftElementNum: this.dftElementNum,
+            dftBarMaxLevel: this.dftBarMaxLevel,
+            currentDftWaveLevel: this.currentDftWaveLevel,
+            previousDftWaveLevel: this.previousDftWaveLevel,
+            pulseEmit: this.pulseEmit
+        };
+    }
 }

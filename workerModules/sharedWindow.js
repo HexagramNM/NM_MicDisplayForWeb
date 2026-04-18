@@ -1,32 +1,29 @@
-import {
-	CanvasTexture,
-	createVbo,
-	createIbo,
-} from "./createWebGLObj.js";
-import {matIV} from "./minMatrix.js";
+
+import { workerVersion } from "./workerVersion.js";
+
+const matIV = (await import(`./minMatrix.js?v=${workerVersion}`)).matIV;
+const createWebGLObj = await import(`./createWebGLObj.js?v=${workerVersion}`);
+const BitmapTexture = createWebGLObj.BitmapTexture;
+const createVbo = createWebGLObj.createVbo;
+const createIbo = createWebGLObj.createIbo;
 
 export class SharedWindow {
-	constructor(gl, sharedWindowMng, virtualSharedWindowShaderInfo) {
+	constructor(gl, virtualSharedWindowShaderInfo) {
 		this.gl = gl;
-		this.sharedWindowMng = sharedWindowMng;
 		this.virtualSharedWindowShaderInfo = virtualSharedWindowShaderInfo;
 
-		this.trimmedSize = {width: 1920, height: 1080};
 		this.positionData = null;
 		this.positionVbo = null;
 		this.colorVbo = null;
 		this.textureVbo = null;
 		this.ibo = null;
-		this.textureObj = new CanvasTexture(this.gl, "virtualShareWindowTexture");
+		this.textureObj = new BitmapTexture(this.gl);
+		this.trimmedSize = {width: 1920, height: 1080};
 	
 		this.mMatrix = SharedWindow.mat.identity(SharedWindow.mat.create());
         this.mvpMatrix = SharedWindow.mat.identity(SharedWindow.mat.create());
 		
-		const virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
-		virtualShareWindowTexture.width = SharedWindow.textureSize;
-		virtualShareWindowTexture.height = SharedWindow.textureSize;
 		this.createVirtualShareWindowBuffer();
-		this.update();
 	}
 
 	createVirtualShareWindowBuffer() {
@@ -61,42 +58,10 @@ export class SharedWindow {
 		this.ibo = createIbo(this.gl, indexData);
 	}
 
-	update() {
-		// テクスチャ更新
-		const virtualShareWindowVideo = document.getElementById("virtualShareWindowVideo");
-		const virtualShareWindowWidthOffset = virtualShareWindowVideo.width 
-			* this.sharedWindowMng.videoPercentRangeInWindowShareMode[0][0] / 100.0;
-		const virtualShareWindowWidthRange = virtualShareWindowVideo.width
-			* (this.sharedWindowMng.videoPercentRangeInWindowShareMode[0][1]
-			- this.sharedWindowMng.videoPercentRangeInWindowShareMode[0][0]) / 100.0;
-		const virtualShareWindowHeightOffset = virtualShareWindowVideo.height
-			* this.sharedWindowMng.videoPercentRangeInWindowShareMode[1][0] / 100.0;
-		const virtualShareWindowHeightRange = virtualShareWindowVideo.height
-			* (this.sharedWindowMng.videoPercentRangeInWindowShareMode[1][1]
-			- this.sharedWindowMng.videoPercentRangeInWindowShareMode[1][0]) / 100.0;
-
-		virtualShareWindowVideo.width = virtualShareWindowVideo.videoWidth;
-		virtualShareWindowVideo.height = virtualShareWindowVideo.videoHeight;
-		this.trimmedSize.width = virtualShareWindowWidthRange;
-		this.trimmedSize.height = virtualShareWindowHeightRange;
-
-		if (this.trimmedSize.width <= 0
-			|| this.trimmedSize.height <= 0) {
-			
-			return;
-		}
-
-		const virtualShareWindowTexture = document.getElementById("virtualShareWindowTexture");
-		const virtualShareWindowTextureCtx = virtualShareWindowTexture.getContext("2d");
-		virtualShareWindowTextureCtx.drawImage(virtualShareWindowVideo,
-			virtualShareWindowWidthOffset, virtualShareWindowHeightOffset,
-			virtualShareWindowWidthRange, virtualShareWindowHeightRange,
-			0, 0, SharedWindow.textureSize, 
-			SharedWindow.textureSize);
-
-		if (this.textureObj != null) {
-			this.textureObj.redraw();
-		}
+	update(bitmap, width, height) {
+		this.textureObj.redraw(bitmap);
+		this.trimmedSize.width = width;
+		this.trimmedSize.height = height;
 
 		// 頂点位置更新
 		var virtualShareWindowWidth = 0.0;
@@ -148,7 +113,6 @@ export class SharedWindow {
 }
 
 SharedWindow.mat = new matIV();
-SharedWindow.textureSize = 512;
 SharedWindow.planeNum = 21;
 SharedWindow.height = 5.0;
 SharedWindow.radius = 12.0;

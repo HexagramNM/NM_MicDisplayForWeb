@@ -1,6 +1,5 @@
 
-import {HistogramEqualizer} from "./modules/histogramEqualizer.js";
-import {NM_MicDisplayStarter} from "./modules/NM_MicDisplayStarter.js";
+import {NM_MicDisplayStarter} from "./mainModules/NM_MicDisplayStarter.js";
 
 const micDisplayStarter = new NM_MicDisplayStarter();
 
@@ -10,7 +9,6 @@ async function VirtualBB_onload() {
         + backgroundColor.g.toString(16).padStart(2, "0")
         + backgroundColor.b.toString(16).padStart(2, "0");
     document.bgColor = backgroundColorCode;
-    await HistogramEqualizer.webgpuInit();
     await micDisplayStarter.onLoad();
 }
 

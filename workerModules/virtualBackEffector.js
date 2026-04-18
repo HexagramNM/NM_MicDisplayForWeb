@@ -1,10 +1,12 @@
-import {
-    createShader,
-    ShaderInfo,
-    PlaneBuffer
-} from "./createWebGLObj.js";
-import imageVshaderSrc from "./../shaders/imageVshader.vert.js";
-import backMaskFshaderSrc from "./../shaders/backMaskFshader.frag.js";
+
+import { workerVersion } from "./workerVersion.js";
+
+const createWebGLObj = await import(`./createWebGLObj.js?v=${workerVersion}`);
+const createShader = createWebGLObj.createShader;
+const ShaderInfo = createWebGLObj.ShaderInfo;
+const PlaneBuffer = createWebGLObj.PlaneBuffer;
+const imageVshaderSrc = (await import(`./../shaders/imageVshader.vert.js?v=${workerVersion}`)).default;
+const backMaskFshaderSrc = (await import(`./../shaders/backMaskFshader.frag.js?v=${workerVersion}`)).default;
 
 export class VirtualBackEffector {
     constructor(gl, sourceTexture, textureSize) {
