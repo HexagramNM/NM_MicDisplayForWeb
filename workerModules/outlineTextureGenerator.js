@@ -67,7 +67,7 @@ export class OutlineTextureGenerator {
         shaderInfo.enableAttribute(0);
 		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, PlaneBuffer.imageTextureVbo);
         shaderInfo.enableAttribute(1);
-}
+    }
 
     generateOutline(thickness, alphaThreshold, lineColorIn, lineColorOut, outlineAlpha) {
         if (lineColorIn.length != 3 || lineColorOut.length != 3) {

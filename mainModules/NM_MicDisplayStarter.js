@@ -289,7 +289,6 @@ export class NM_MicDisplayStarter {
                     deviceId: this.selectedMicDeviceId ? {exact: this.selectedMicDeviceId}: undefined
                 },
                 video: {
-                    //virtualBackCanvasSizeはglobalVariables.jsからの変数
                     deviceId: this.selectedCameraDeviceId ? {exact: this.selectedCameraDeviceId}: undefined,
                     width: {ideal: idealVirtualBackWidth},
                     height: {ideal: idealVirtualBackHeight}

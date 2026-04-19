@@ -114,6 +114,9 @@ export class VirtualBackImageProcessor {
         this.videoComponent.height = this.originalSize.height;
         this.videoComponent.autoplay = true;
         this.videoComponent.srcObject = videoStream;
+        this.videoCanvas = new OffscreenCanvas(
+            this.originalSize.width, this.originalSize.height);
+        this.videoCanvasCtx = this.videoCanvas.getContext("2d");
         this.blazePoseCanvas = new OffscreenCanvas(
             VirtualBackImageProcessor.blazePoseCanvasSize,
             VirtualBackImageProcessor.blazePoseCanvasSize);
@@ -143,11 +146,12 @@ export class VirtualBackImageProcessor {
             return;
         }
 
-        this.histogramEqualizer.apply(this.videoComponent, [this.blazePoseCanvas]);
+        this.videoCanvasCtx.drawImage(this.videoComponent, 0, 0);
+        this.histogramEqualizer.apply(this.videoCanvas, [this.blazePoseCanvas]);
         const processedSegmentResult = await this.blazePoseNet.estimatePoses(this.blazePoseCanvas);
 
         if (processedSegmentResult.length > 0) {
-            const maskImage = await processedSegmentResult[0].segmentation.mask.toImageData();
+            const maskImage = processedSegmentResult[0].segmentation.mask.mask;
             WebGpuDevice.device.queue.copyExternalImageToTexture(
                 { source: maskImage },
                 { texture: this.maskTexture },
