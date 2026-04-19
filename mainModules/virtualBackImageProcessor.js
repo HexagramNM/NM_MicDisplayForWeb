@@ -9,7 +9,10 @@ export class VirtualBackImageProcessor {
         this.hasVirtualBack = false;
         this.mirrorVirtualBack = false;
         this.blazePoseNet = null;
-        this.originalSize = {width: 1920, height: 1440};
+        this.videoSize = {width: 1920, height: 1440};
+        this.videoOffsetX = 0;
+        this.maximumSourceAspect = 4.0 / 3.0; // width / height 
+        this.sourceSize = {width: 1920, height: 1440};
         if (!videoStream 
             || videoStream.getVideoTracks().length <= 0) {
             
@@ -26,7 +29,7 @@ export class VirtualBackImageProcessor {
         }
         
         this.histogramEqualizer = new HistogramEqualizer(
-            this.originalSize.width, this.originalSize.height);
+            this.sourceSize.width, this.sourceSize.height);
         
         this.maskTexture = WebGpuDevice.device.createTexture({
             size: [
@@ -106,16 +109,27 @@ export class VirtualBackImageProcessor {
 
     initCanvas(videoStream) {
         const videoTracks = videoStream.getVideoTracks();
-        this.originalSize.width = videoTracks[0].getSettings().width;
-        this.originalSize.height = videoTracks[0].getSettings().height;
+        this.videoSize.width = videoTracks[0].getSettings().width;
+        this.videoSize.height = videoTracks[0].getSettings().height;
+        this.sourceSize.width = this.videoSize.width;
+        this.sourceSize.height = this.videoSize.height;
+        
+        if (this.videoSize.height > 0) {
+            const aspect = this.videoSize.width / this.videoSize.height;
+            if (aspect > this.maximumSourceAspect) {
+                //16:9など4:3よりも幅が広い場合、4:3に収まるようクリッピング
+                this.sourceSize.width = this.videoSize.height * this.maximumSourceAspect;
+                this.videoOffsetX = ((this.videoSize.width - this.sourceSize.width) * 0.5) | 0;
+            }
+        }
         
         this.videoComponent = document.getElementById("virtualBackVideo");
-        this.videoComponent.width = this.originalSize.width;
-        this.videoComponent.height = this.originalSize.height;
+        this.videoComponent.width = this.videoSize.width;
+        this.videoComponent.height = this.videoSize.height;
         this.videoComponent.autoplay = true;
         this.videoComponent.srcObject = videoStream;
         this.videoCanvas = new OffscreenCanvas(
-            this.originalSize.width, this.originalSize.height);
+            this.sourceSize.width, this.sourceSize.height);
         this.videoCanvasCtx = this.videoCanvas.getContext("2d");
         this.blazePoseCanvas = new OffscreenCanvas(
             VirtualBackImageProcessor.blazePoseCanvasSize,
@@ -146,7 +160,9 @@ export class VirtualBackImageProcessor {
             return;
         }
 
-        this.videoCanvasCtx.drawImage(this.videoComponent, 0, 0);
+        this.videoCanvasCtx.drawImage(this.videoComponent,
+            this.videoOffsetX, 0, this.sourceSize.width, this.sourceSize.height,
+            0, 0, this.sourceSize.width, this.sourceSize.height);
         this.histogramEqualizer.apply(this.videoCanvas, [this.blazePoseCanvas]);
         const processedSegmentResult = await this.blazePoseNet.estimatePoses(this.blazePoseCanvas);
 

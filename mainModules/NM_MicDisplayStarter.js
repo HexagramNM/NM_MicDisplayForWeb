@@ -353,8 +353,8 @@ export class NM_MicDisplayStarter {
             canvas: offscreen,
             micSignalData: micSignalData,
             hasVirtualBack: this.virtualBackImageProc.hasVirtualBack,
-            virtualBackInputWidth: this.virtualBackImageProc.originalSize.width,
-            virtualBackInputHeight: this.virtualBackImageProc.originalSize.height,
+            virtualBackInputWidth: this.virtualBackImageProc.sourceSize.width,
+            virtualBackInputHeight: this.virtualBackImageProc.sourceSize.height,
             virtualBackTextureSize: VirtualBackImageProcessor.virtualBackTextureSize,
             hasSharedWindow: this.hasShareWindow
         }, [offscreen]);
