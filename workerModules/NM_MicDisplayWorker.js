@@ -4,7 +4,7 @@ import { workerVersion } from "./workerVersion.js";
 var micDisplay = null;
 var outputCanvas = null;
 
-async function initMicDisplay(canvas, micSignalData,
+async function initMicDisplay(canvas, initialMicSignalData,
     hasVirtualBack, virtualBackInputWidth, virtualBackInputHeight, virtualBackTextureSize,
     hasSharedWindow) {
     if (!canvas || !(canvas.getContext)) {
@@ -30,7 +30,7 @@ async function initMicDisplay(canvas, micSignalData,
     const NM_MicDisplay = (await import(`./NM_MicDisplay.js?v=${workerVersion}`)).NM_MicDisplay;
 
     PlaneBuffer.init(gl);
-    micDisplay = new NM_MicDisplay(gl, micSignalData,
+    micDisplay = new NM_MicDisplay(gl, initialMicSignalData,
         hasVirtualBack, virtualBackInputWidth, virtualBackInputHeight, virtualBackTextureSize,
         hasSharedWindow);
     await micDisplay.waitForTextureLoading();
@@ -43,23 +43,20 @@ function main() {
     micDisplay.main();
 }
 
-self.onmessage = (e) => {
+self.onmessage = async (e) => {
     if (e.data.type === "init") {
         try {
-            initMicDisplay(e.data.canvas, e.data.micSignalData,
+            await initMicDisplay(e.data.canvas, e.data.initialMicSignalData,
                 e.data.hasVirtualBack, e.data.virtualBackInputWidth,
                 e.data.virtualBackInputHeight, e.data.virtualBackTextureSize,
                 e.data.hasSharedWindow
             );
+            e.data.micSignalPort.onmessage = (e) => {
+                micDisplay.updateMicSignalData(e.data);
+            }
         } catch (error) {
             console.error("Error initializing mic display:", error);
         }
-    }
-    else if (e.data.type === "updateMicSignalData") {
-        if (micDisplay == null) {
-            return;
-        }
-        micDisplay.updateMicSignalData(e.data.micSignalData);
     }
     else if (e.data.type === "updateVirtualBackImage") {
         if (micDisplay == null || micDisplay.virtualBack == null) {

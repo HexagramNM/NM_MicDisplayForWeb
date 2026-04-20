@@ -1,6 +1,5 @@
 
 import { WebGpuDevice } from "./webGpuDevice.js";
-import { MicSignalManager } from "./micSignalManager.js";
 import { SharedWindowManager } from "./sharedWindowManager.js";
 import { VirtualBackImageProcessor } from "./virtualBackImageProcessor.js";
 import { NM_MicDisplayEvent } from "./NM_MicDisplayEvent.js";
@@ -302,6 +301,19 @@ export class NM_MicDisplayStarter {
         return [videoStream, audioStream];
     }
 
+    getInitialMicSignalData() {
+        return {
+            currentWaveLevel: 0.0,
+            soundDisplayLength: 2048,
+            waveDataFloat: new Float32Array(2048).fill(0.0),
+            dftElementNum: 19,
+            dftBarMaxLevel: 12,
+            currentDftWaveLevel: new Array(19).fill(0),
+            previousDftWaveLevel: new Array(19).fill(0),
+            pulseEmit: false
+        };
+    }
+
     async startProcess() {
         document.getElementById("easyInst").style.display = "none";
         this.saveOption("cameraSelect");
@@ -327,7 +339,12 @@ export class NM_MicDisplayStarter {
         const blazePoseModelTypeIdx = blazePoseNodelTypeForm.selectedIndex;
         const blazePoseModelType = blazePoseNodelTypeForm.options[blazePoseModelTypeIdx].value;
 
-        this.micSigMng = new MicSignalManager(micDisplayAudioStream);
+        const audioCtx = new AudioContext();
+        await audioCtx.audioWorklet.addModule(
+            new URL(`./micSignalWorklet.js?v=${Date.now()}`, import.meta.url));
+        const micSignalWorklet = new AudioWorkletNode(audioCtx, "MicSignalWorklet");
+        const input = audioCtx.createMediaStreamSource(micDisplayAudioStream);
+        input.connect(micSignalWorklet);
 
         await WebGpuDevice.webgpuInit();
         this.virtualBackImageProc = new VirtualBackImageProcessor(
@@ -347,17 +364,18 @@ export class NM_MicDisplayStarter {
 
         const canvas = document.getElementById('NM_MicDisplayOutput');
         const offscreen = canvas.transferControlToOffscreen();
-        const micSignalData = this.micSigMng.getSignalData();
+        const initialMicSignalData = this.getInitialMicSignalData();
         this.micDisplayWorker.postMessage({
             type: "init",
             canvas: offscreen,
-            micSignalData: micSignalData,
+            initialMicSignalData: initialMicSignalData,
+            micSignalPort: micSignalWorklet.port,
             hasVirtualBack: this.virtualBackImageProc.hasVirtualBack,
             virtualBackInputWidth: this.virtualBackImageProc.sourceSize.width,
             virtualBackInputHeight: this.virtualBackImageProc.sourceSize.height,
             virtualBackTextureSize: VirtualBackImageProcessor.virtualBackTextureSize,
             hasSharedWindow: this.hasShareWindow
-        }, [offscreen]);
+        }, [offscreen, micSignalWorklet.port]);
 
         this.main();
     }
@@ -419,11 +437,5 @@ export class NM_MicDisplayStarter {
                     console.error("Failed to create virtual back bitmap:", err);
                 });
         }
-
-        this.micSigMng.update();
-        const micSignalData = this.micSigMng.getSignalData();
-        this.micDisplayWorker.postMessage({
-            type: "updateMicSignalData",
-            micSignalData: micSignalData});
     }
 }

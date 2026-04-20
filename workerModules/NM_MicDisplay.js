@@ -83,6 +83,7 @@ export class NM_MicDisplay {
 	}
 
 	updateMicSignalData(micSignalData) {
+		micSignalData.pulseEmit = (this.micSignalData.pulseEmit || micSignalData.pulseEmit)
 		Object.assign(this.micSignalData, micSignalData);
 	}
 
