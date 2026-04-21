@@ -9,6 +9,7 @@ export class VirtualBackImageProcessor {
         this.hasVirtualBack = false;
         this.mirrorVirtualBack = false;
         this.blazePoseNet = null;
+        this.transparentBlazePoseImage = null;
         this.videoSize = {width: 1920, height: 1440};
         this.videoOffsetX = 0;
         this.maximumSourceAspect = 4.0 / 3.0; // width / height 
@@ -152,7 +153,16 @@ export class VirtualBackImageProcessor {
             solutionPath: "https://cdn.jsdelivr.net/npm/@mediapipe/pose"
         };
 
-        this.blazePoseNet = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, detectorConfig);        
+        this.blazePoseNet = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, detectorConfig);
+        
+        const transparentBlazePoseCanvas = new OffscreenCanvas(
+            VirtualBackImageProcessor.blazePoseCanvasSize,
+            VirtualBackImageProcessor.blazePoseCanvasSize);
+        const transparentBlazePoseCanvasCtx = transparentBlazePoseCanvas.getContext("2d");
+        transparentBlazePoseCanvasCtx.fillStyle = "transparent";
+        transparentBlazePoseCanvasCtx.fillRect(0, 0,
+            VirtualBackImageProcessor.blazePoseCanvasSize, VirtualBackImageProcessor.blazePoseCanvasSize);
+        this.transparentBlazePoseImage = await createImageBitmap(transparentBlazePoseCanvas)
     }
 
     async processFrame() {
@@ -170,6 +180,16 @@ export class VirtualBackImageProcessor {
             const maskImage = processedSegmentResult[0].segmentation.mask.mask;
             WebGpuDevice.device.queue.copyExternalImageToTexture(
                 { source: maskImage },
+                { texture: this.maskTexture },
+                [
+                    VirtualBackImageProcessor.blazePoseCanvasSize,
+                    VirtualBackImageProcessor.blazePoseCanvasSize
+                ]
+            );
+        }
+        else {
+            WebGpuDevice.device.queue.copyExternalImageToTexture(
+                { source: this.transparentBlazePoseImage },
                 { texture: this.maskTexture },
                 [
                     VirtualBackImageProcessor.blazePoseCanvasSize,
