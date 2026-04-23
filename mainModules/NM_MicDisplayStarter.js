@@ -13,7 +13,7 @@ export class NM_MicDisplayStarter {
         this.micDeviceLists = [];
         this.selectedMicDeviceId = null;
 
-        this.micSigMng = null;
+        this.micSignalWorklet = null;
         this.virtualBackImageProc = null;
         this.sharedWindowMng = null;
         this.eventMng = null;
@@ -342,9 +342,9 @@ export class NM_MicDisplayStarter {
         const audioCtx = new AudioContext();
         await audioCtx.audioWorklet.addModule(
             new URL(`./micSignalWorklet.js?v=${Date.now()}`, import.meta.url));
-        const micSignalWorklet = new AudioWorkletNode(audioCtx, "MicSignalWorklet");
+        this.micSignalWorklet = new AudioWorkletNode(audioCtx, "MicSignalWorklet");
         const input = audioCtx.createMediaStreamSource(micDisplayAudioStream);
-        input.connect(micSignalWorklet);
+        input.connect(this.micSignalWorklet);
 
         await WebGpuDevice.webgpuInit();
         this.virtualBackImageProc = new VirtualBackImageProcessor(
@@ -369,13 +369,13 @@ export class NM_MicDisplayStarter {
             type: "init",
             canvas: offscreen,
             initialMicSignalData: initialMicSignalData,
-            micSignalPort: micSignalWorklet.port,
+            micSignalPort: this.micSignalWorklet.port,
             hasVirtualBack: this.virtualBackImageProc.hasVirtualBack,
             virtualBackInputWidth: this.virtualBackImageProc.sourceSize.width,
             virtualBackInputHeight: this.virtualBackImageProc.sourceSize.height,
             virtualBackTextureSize: VirtualBackImageProcessor.virtualBackTextureSize,
             hasSharedWindow: this.hasShareWindow
-        }, [offscreen, micSignalWorklet.port]);
+        }, [offscreen, this.micSignalWorklet.port]);
 
         this.main();
     }
