@@ -1,15 +1,18 @@
 
+import { 
+    ImageSegmenter,
+    FilesetResolver,
+    DrawingUtils
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.34/+esm";
 import { WebGpuDevice } from "./webGpuDevice.js";
 import { HistogramEqualizer } from "./histogramEqualizer.js";
 import fullscreenVshaderSrc from "../shaders/webgpu_fullScreenTriangle.vert.js";
 import maskFshaderSrc from "../shaders/webgpu_maskTexture.frag.js";
 
 export class VirtualBackImageProcessor {
-    constructor(videoStream, blazePoseModelType) {
+    constructor(videoStream) {
         this.hasVirtualBack = false;
         this.mirrorVirtualBack = false;
-        this.blazePoseNet = null;
-        this.transparentBlazePoseImage = null;
         this.videoSize = {width: 1920, height: 1440};
         this.videoOffsetX = 0;
         this.maximumSourceAspect = 4.0 / 3.0; // width / height 
@@ -22,7 +25,6 @@ export class VirtualBackImageProcessor {
 
         this.hasVirtualBack = true;
         this.initCanvas(videoStream);
-        this.blazePoseModelType = blazePoseModelType;
 
         if (WebGpuDevice.gpu === null || WebGpuDevice.device === null) {
             console.error("WebGPU is not initialized.");
@@ -34,8 +36,8 @@ export class VirtualBackImageProcessor {
         
         this.maskTexture = WebGpuDevice.device.createTexture({
             size: [
-                VirtualBackImageProcessor.blazePoseCanvasSize,
-                VirtualBackImageProcessor.blazePoseCanvasSize
+                VirtualBackImageProcessor.segmentationCanvasSize,
+                VirtualBackImageProcessor.segmentationCanvasSize
             ],
             format: "rgba8unorm",
             usage: GPUTextureUsage.COPY_DST
@@ -86,15 +88,15 @@ export class VirtualBackImageProcessor {
             entries: [
                 {
                     binding: 0,
-                    resource: this.histogramEqualizer.getOutputWebGPUTexture().createView()
+                    resource: this.histogramEqualizer.getOutputWebGPUTexture().createView(),
                 },
                 {
                     binding: 1,
-                    resource: this.maskTexture.createView()
+                    resource: this.maskTexture.createView(),
                 },
                 {
                     binding: 2,
-                    resource: this.sampler
+                    resource: this.sampler,
                 },
                 {
                     binding: 3,
@@ -132,40 +134,57 @@ export class VirtualBackImageProcessor {
         this.videoCanvas = new OffscreenCanvas(
             this.sourceSize.width, this.sourceSize.height);
         this.videoCanvasCtx = this.videoCanvas.getContext("2d");
-        this.blazePoseCanvas = new OffscreenCanvas(
-            VirtualBackImageProcessor.blazePoseCanvasSize,
-            VirtualBackImageProcessor.blazePoseCanvasSize);
+        this.segmentationCanvas = new OffscreenCanvas(
+            VirtualBackImageProcessor.segmentationCanvasSize,
+            VirtualBackImageProcessor.segmentationCanvasSize);
+        this.maskCanvas = new OffscreenCanvas(
+            VirtualBackImageProcessor.segmentationCanvasSize,
+            VirtualBackImageProcessor.segmentationCanvasSize);
+        this.maskCanvasCtx = this.maskCanvas.getContext("webgl2");
+        this.maskDrawingUtils = new DrawingUtils(this.maskCanvasCtx);
         this.textureCanvas = new OffscreenCanvas(
             VirtualBackImageProcessor.virtualBackTextureSize,
             VirtualBackImageProcessor.virtualBackTextureSize);
         this.textureCanvasCtx = this.textureCanvas.getContext("webgpu");
     }
 
-    async initBlazePose() {
+    async initSegmentation() {
         if (!this.hasVirtualBack) {
             return;
         }
 
+        const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm");
+        const modelPath = "https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_multiclass_256x256/float32/latest/selfie_multiclass_256x256.tflite";
         const detectorConfig = {
-            runtime: "mediapipe",
-            enableSegmentation: true,
-            modelType: this.blazePoseModelType,
-            solutionPath: "https://cdn.jsdelivr.net/npm/@mediapipe/pose"
+            baseOptions: {
+                modelAssetPath: modelPath,
+                delegate: "GPU"
+            },
+            canvas: this.maskCanvas,
+            outputCategoryMask: false,
+            outputConfidenceMasks: true
         };
 
-        this.blazePoseNet = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, detectorConfig);
-        
-        const transparentBlazePoseCanvas = new OffscreenCanvas(
-            VirtualBackImageProcessor.blazePoseCanvasSize,
-            VirtualBackImageProcessor.blazePoseCanvasSize);
-        const transparentBlazePoseCanvasCtx = transparentBlazePoseCanvas.getContext("2d");
-        transparentBlazePoseCanvasCtx.fillStyle = "transparent";
-        transparentBlazePoseCanvasCtx.fillRect(0, 0,
-            VirtualBackImageProcessor.blazePoseCanvasSize, VirtualBackImageProcessor.blazePoseCanvasSize);
-        this.transparentBlazePoseImage = await createImageBitmap(transparentBlazePoseCanvas)
+        this.imageSegmenter = await ImageSegmenter.createFromOptions(vision, detectorConfig);
+        this.processSegment();
     }
 
-    async processFrame() {
+    async processSegment() {
+        setTimeout(() => {this.processSegment()}, VirtualBackImageProcessor.segmentInterval);
+        const detectResult = await this.imageSegmenter.segment(this.segmentationCanvas);
+        const confidenceMasks = detectResult.confidenceMasks;
+        if (confidenceMasks.length > 0) {
+            this.maskDrawingUtils.drawConfidenceMask(
+                confidenceMasks[0], 
+                VirtualBackImageProcessor.foregroundMaskColor,
+                VirtualBackImageProcessor.backgroundMaskColor);
+        }
+
+        confidenceMasks.forEach((mask) => mask.close());
+        detectResult.close();
+    }
+
+    processFrame() {
         if (!this.hasVirtualBack) {
             return;
         }
@@ -173,30 +192,16 @@ export class VirtualBackImageProcessor {
         this.videoCanvasCtx.drawImage(this.videoComponent,
             this.videoOffsetX, 0, this.sourceSize.width, this.sourceSize.height,
             0, 0, this.sourceSize.width, this.sourceSize.height);
-        this.histogramEqualizer.apply(this.videoCanvas, [this.blazePoseCanvas]);
-        const processedSegmentResult = await this.blazePoseNet.estimatePoses(this.blazePoseCanvas);
+        this.histogramEqualizer.apply(this.videoCanvas, [this.segmentationCanvas]);
 
-        if (processedSegmentResult.length > 0) {
-            const maskImage = processedSegmentResult[0].segmentation.mask.mask;
-            WebGpuDevice.device.queue.copyExternalImageToTexture(
-                { source: maskImage },
-                { texture: this.maskTexture },
-                [
-                    VirtualBackImageProcessor.blazePoseCanvasSize,
-                    VirtualBackImageProcessor.blazePoseCanvasSize
-                ]
-            );
-        }
-        else {
-            WebGpuDevice.device.queue.copyExternalImageToTexture(
-                { source: this.transparentBlazePoseImage },
-                { texture: this.maskTexture },
-                [
-                    VirtualBackImageProcessor.blazePoseCanvasSize,
-                    VirtualBackImageProcessor.blazePoseCanvasSize
-                ]
-            );
-        }
+        WebGpuDevice.device.queue.copyExternalImageToTexture(
+            { source: this.maskCanvas },
+            { texture: this.maskTexture },
+            { 
+                width: VirtualBackImageProcessor.segmentationCanvasSize,
+                height: VirtualBackImageProcessor.segmentationCanvasSize
+            }
+        );
 
         const format = WebGpuDevice.gpu.getPreferredCanvasFormat();
         this.textureCanvasCtx.configure({
@@ -251,5 +256,8 @@ export class VirtualBackImageProcessor {
     }
 }
 
-VirtualBackImageProcessor.blazePoseCanvasSize = 256;
+VirtualBackImageProcessor.segmentationCanvasSize = 256;
 VirtualBackImageProcessor.virtualBackTextureSize = 1024;
+VirtualBackImageProcessor.segmentInterval = 1000.0 / 20.0;
+VirtualBackImageProcessor.foregroundMaskColor = [255, 0, 0, 255];
+VirtualBackImageProcessor.backgroundMaskColor = [0, 0, 0, 255];

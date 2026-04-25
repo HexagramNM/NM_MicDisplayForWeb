@@ -49,7 +49,6 @@ export class NM_MicDisplayStarter {
         this.loadOption("micSelect");
         this.loadOption("sharedWindowSelect");
         this.loadOption("loopBackAudioSelect");
-        this.loadOption("blazePoseModelType");
 
         document.getElementById("startButton").disabled = false;
         document.getElementById("startButton").addEventListener("click", (e) => {this.startProcess();});
@@ -119,7 +118,7 @@ export class NM_MicDisplayStarter {
         var videoStream = null;
         var audioStream = null;
         if (loopBackAudioSelectIndex >= 2) {
-            const loopBackAudioDeviceId = this.micDeviceLists[loopBackAudioSelectIndex - 2].deviceId
+            const loopBackAudioDeviceId = this.micDeviceLists[loopBackAudioSelectIndex - 2].deviceId;
             const tempStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     deviceId: loopBackAudioDeviceId ? {exact: loopBackAudioDeviceId}: undefined,
@@ -154,7 +153,7 @@ export class NM_MicDisplayStarter {
             audioStream = new MediaStream(tempStream.getAudioTracks());
         }
         else if (loopBackAudioSelectIndex >= 2) {
-            var loopBackAudioDeviceId = this.micDeviceLists[loopBackAudioSelectIndex - 2].deviceId
+            var loopBackAudioDeviceId = this.micDeviceLists[loopBackAudioSelectIndex - 2].deviceId;
             tempStream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     deviceId: loopBackAudioDeviceId ? {exact: loopBackAudioDeviceId}: undefined,
@@ -320,7 +319,6 @@ export class NM_MicDisplayStarter {
         this.saveOption("micSelect");
         this.saveOption("sharedWindowSelect");
         this.saveOption("loopBackAudioSelect");
-        this.saveOption("blazePoseModelType");
 
         var micDisplayVideoStream = null;
         var micDisplayAudioStream = null;
@@ -335,10 +333,6 @@ export class NM_MicDisplayStarter {
             return;
         }
 
-        const blazePoseNodelTypeForm = document.getElementById("blazePoseModelType");
-        const blazePoseModelTypeIdx = blazePoseNodelTypeForm.selectedIndex;
-        const blazePoseModelType = blazePoseNodelTypeForm.options[blazePoseModelTypeIdx].value;
-
         const audioCtx = new AudioContext();
         await audioCtx.audioWorklet.addModule(
             new URL(`./micSignalWorklet.js?v=${Date.now()}`, import.meta.url));
@@ -348,8 +342,8 @@ export class NM_MicDisplayStarter {
 
         await WebGpuDevice.webgpuInit();
         this.virtualBackImageProc = new VirtualBackImageProcessor(
-            micDisplayVideoStream, blazePoseModelType);
-        await this.virtualBackImageProc.initBlazePose();
+            micDisplayVideoStream);
+        await this.virtualBackImageProc.initSegmentation();
 
         await this.prepareSharedWindowStream();
         if (this.hasShareWindow) {
@@ -425,7 +419,7 @@ export class NM_MicDisplayStarter {
         }
 
         if (this.virtualBackImageProc.hasVirtualBack) {
-            await this.virtualBackImageProc.processFrame();
+            this.virtualBackImageProc.processFrame();
             await createImageBitmap(this.virtualBackImageProc.getOutputTextureCanvas())
                 .then(virtualBackBitmap => {
                     this.micDisplayWorker.postMessage({

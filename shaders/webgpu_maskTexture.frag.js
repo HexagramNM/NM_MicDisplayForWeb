@@ -27,7 +27,7 @@ fn main(@builtin(position) pos : vec4<f32>
     let color = textureSample(inputTexture, smp, uv);
     let maskColor = textureSample(maskTexture, smp, uv);
     
-    return vec4<f32>(color.rgb, color.a * maskColor.a);
+    return vec4<f32>(color.rgb, color.a * maskColor.r);
 }
 
 `

@@ -4,14 +4,6 @@
   <meta charset="UTF-8">
   <link rel="icon" href="image/NM_MicDisplay_icon.ico">
   <title>NM_MicDisplay for Web</title>
-  <!-- Require the peer dependencies of pose-detection. -->
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
-
-  <!-- You must explicitly require a TF.js backend if you're not using the TF.js union bundle. -->
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
-
   <script type="module" src="main.js"></script>
 </head>
 
@@ -48,11 +40,6 @@
     音声ループバック：<select id="loopBackAudioSelect" style="width: 200px">
       <option value="none">しない</option>
       <option value="same">画面共有と同じ音声</option>
-    </select><br>
-    BlazePoseモデル：<select id="blazePoseModelType" style="width: 200px">
-      <option value="full">full (標準)</option>
-      <option value="lite">lite (軽量)</option>
-      <option value="heavy">heavy (高品質)</option>
     </select><br>
     <button id="startButton" type="button" disabled>スタート</button>
   </div>
@@ -103,6 +90,13 @@ SOFTWARE.
 
 
 (The following are the licenses for third-party libraries used in NM_MicDisplayForWeb.)
+
+[@mediapipe/tasks-vision]
+Copyright 2023 Google LLC. All rights reserved.
+
+Licensed under the Apache License, Version 2.0
+http://www.apache.org/licenses/LICENSE-2.0
+
 
 [fft-js]
 The MIT License (MIT)
