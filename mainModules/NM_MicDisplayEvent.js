@@ -7,9 +7,11 @@ export class NM_MicDisplayEvent {
 
         this.previousMousePos = [null, null];
 		this.canvasPositionInWindowShareMode = [0, 0];
+        this.stopCamera = false;
         this.adjustCanvasSize(true);
 
         document.oncontextmenu = () => { return this.toggleMirror(); };
+        document.addEventListener("keyup", (e) => this.keyUpEvent(e));
 
         const c = document.getElementById('NM_MicDisplayOutput');
         c.addEventListener("mousedown", (e) => { this.mouseDownEvent(e); });
@@ -22,6 +24,12 @@ export class NM_MicDisplayEvent {
         this.virtualBackImageProc.toggleMirror();
         //右クリックによるメニューを抑制
         return false;
+    }
+
+    keyUpEvent(event) {
+        if (event.key == "c") {
+            this.stopCamera = !this.stopCamera;
+        }
     }
 
     mouseDownEvent(event) {

@@ -420,7 +420,9 @@ export class NM_MicDisplayStarter {
 
         if (this.virtualBackImageProc.hasVirtualBack) {
             await this.virtualBackImageProc.processFrame();
-            await createImageBitmap(this.virtualBackImageProc.getOutputTextureCanvas())
+            await createImageBitmap(!this.eventMng.stopCamera
+                ? this.virtualBackImageProc.getOutputTextureCanvas()
+                : this.virtualBackImageProc.getTransparentTextureCanvas())
                 .then(virtualBackBitmap => {
                     this.micDisplayWorker.postMessage({
                         type: "updateVirtualBackImage",

@@ -61,6 +61,15 @@ export class VirtualBackImageProcessor {
             VirtualBackImageProcessor.virtualBackTextureSize);
         this.textureCanvasCtx = this.textureCanvas.getContext("webgl2");
         this.textureDrawingUtils = new DrawingUtils(this.textureCanvasCtx);
+
+        this.transparentTextureCanvas = new OffscreenCanvas(
+            VirtualBackImageProcessor.virtualBackTextureSize,
+            VirtualBackImageProcessor.virtualBackTextureSize);
+        this.transparentTextureCanvasCtx = this.transparentTextureCanvas.getContext("2d");
+        this.transparentTextureCanvasCtx.fillStyle = "transparent";
+        this.transparentTextureCanvasCtx.fillRect(0, 0,
+            VirtualBackImageProcessor.virtualBackTextureSize,
+            VirtualBackImageProcessor.virtualBackTextureSize);
     }
 
     async initSegmentation() {
@@ -114,10 +123,18 @@ export class VirtualBackImageProcessor {
 
     getOutputTextureCanvas() {
         if (!this.hasVirtualBack) {
-            return;
+            return null;
         }
         
         return this.textureCanvas;
+    }
+
+    getTransparentTextureCanvas() {
+        if (!this.hasVirtualBack) {
+            return null;
+        }
+
+        return this.transparentTextureCanvas;
     }
 }
 
