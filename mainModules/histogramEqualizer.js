@@ -117,8 +117,18 @@ export class HistogramEqualizer {
             ]
         });
 
+        this.sampler = WebGpuDevice.device.createSampler({
+            magFilter: "linear",
+            minFilter: "linear"
+        });
+
         this.canvasSizeBuffer = WebGpuDevice.device.createBuffer({
             size: 8,
+            usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+        });
+
+        this.isMirrorBuffer = WebGpuDevice.device.createBuffer({
+            size: 4,
             usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
         });
 
@@ -145,11 +155,6 @@ export class HistogramEqualizer {
             }
         });
 
-        this.sampler = WebGpuDevice.device.createSampler({
-            magFilter: "linear",
-            minFilter: "linear"
-        });
-
         this.renderBindGroup = WebGpuDevice.device.createBindGroup({
             layout: this.renderPipeline.getBindGroupLayout(0),
             entries: [
@@ -164,13 +169,25 @@ export class HistogramEqualizer {
                 {
                     binding: 2,
                     resource: { buffer: this.canvasSizeBuffer }
+                },
+                {
+                    binding: 3,
+                    resource: { buffer: this.isMirrorBuffer }
                 }
             ]
         });
     }
 
-    apply(inputImage, outputCanvases) {
-            WebGpuDevice.device.queue.copyExternalImageToTexture(
+    apply(inputImage, outputCanvas, isMirror=false) {
+        const format = WebGpuDevice.gpu.getPreferredCanvasFormat();
+        const ctx = outputCanvas.getContext("webgpu");
+        ctx.configure({
+            device: WebGpuDevice.device,
+            format: format,
+            alphaMode: "opaque"
+        });
+
+        WebGpuDevice.device.queue.copyExternalImageToTexture(
             { source: inputImage },
             { texture: this.inputTexture },
             [this.inputWidth, this.inputHeight]
@@ -178,6 +195,17 @@ export class HistogramEqualizer {
         
         WebGpuDevice.device.queue.writeBuffer(this.histBuf, 0,
             new Uint32Array(HistogramEqualizer.histogramLevel));
+
+        WebGpuDevice.device.queue.writeBuffer(
+            this.canvasSizeBuffer, 0,
+            new Float32Array([
+                outputCanvas.width,
+                outputCanvas.height
+            ])
+        );
+
+        WebGpuDevice.device.queue.writeBuffer(
+            this.isMirrorBuffer, 0, new Uint32Array([isMirror ? 1 : 0]));
 
         const encoder = WebGpuDevice.device.createCommandEncoder();
         {
@@ -206,27 +234,8 @@ export class HistogramEqualizer {
             pass.end();
         }
 
-        WebGpuDevice.device.queue.submit([encoder.finish()]);
-
-        const format = WebGpuDevice.gpu.getPreferredCanvasFormat();
-        for (let i = 0; i < outputCanvases.length; i++) {
-            const ctx = outputCanvases[i].getContext("webgpu");
-            ctx.configure({
-                device: WebGpuDevice.device,
-                format: format,
-                alphaMode: "opaque"
-            });
-
-            WebGpuDevice.device.queue.writeBuffer(
-                this.canvasSizeBuffer, 0,
-                new Float32Array([
-                    outputCanvases[i].width,
-                    outputCanvases[i].height
-                ])
-            );
-
-            const renderEncoder = WebGpuDevice.device.createCommandEncoder();
-            const pass = renderEncoder.beginRenderPass({
+        {
+            const pass = encoder.beginRenderPass({
                 colorAttachments: [{
                     view: ctx.getCurrentTexture().createView(),
                     clearValue: [0, 0, 0, 1],
@@ -238,14 +247,10 @@ export class HistogramEqualizer {
             pass.setBindGroup(0, this.renderBindGroup);
             pass.draw(3);
             pass.end();
-
-            WebGpuDevice.device.queue.submit([renderEncoder.finish()]);
         }
-    } 
 
-    getOutputWebGPUTexture() {
-        return this.outputTexture;
-    }
+        WebGpuDevice.device.queue.submit([encoder.finish()]);
+    } 
 }
 
 HistogramEqualizer.histogramLevel = 256;

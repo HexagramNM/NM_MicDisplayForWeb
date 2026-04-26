@@ -347,7 +347,7 @@ export class NM_MicDisplayStarter {
 
         await this.prepareSharedWindowStream();
         if (this.hasShareWindow) {
-            this.sharedWindowMng = new SharedWindowManager()
+            this.sharedWindowMng = new SharedWindowManager();
         }
 
         this.micDisplayWorker = new Worker(
@@ -419,7 +419,7 @@ export class NM_MicDisplayStarter {
         }
 
         if (this.virtualBackImageProc.hasVirtualBack) {
-            this.virtualBackImageProc.processFrame();
+            await this.virtualBackImageProc.processFrame();
             await createImageBitmap(this.virtualBackImageProc.getOutputTextureCanvas())
                 .then(virtualBackBitmap => {
                     this.micDisplayWorker.postMessage({
